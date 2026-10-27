@@ -58,7 +58,8 @@ def build_site(store, cfg: dict, run: dict, now: datetime, root: Path, briefing:
     ]
     payload = {
         "title": cfg["site"]["title"],
-        "portal": {"name": cfg["portal"]["name"], "url": cfg["portal"]["home_url"]},
+        "portal": {"name": cfg["portal"]["name"], "url": cfg["portal"]["home_url"],
+                   "org_url": cfg["portal"]["home_url"] + "?page=FrontEndTendersByOrganisation&service=page"},
         "generated_at": now.strftime("%Y-%m-%dT%H:%M"),
         "run": run,
         "runs": store.data.get("runs", [])[-14:],

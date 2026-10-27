@@ -36,6 +36,11 @@ const I18N = {
     b_none: "No suitable tenders open right now.", b_of: "{n} feasible tenders considered",
     tab_personal: "Personalised", b_personal: "Your personalised sections", b_open_new: "{o} open · {n} new today",
     see_all: "See all", no_sections: "No personalised sections configured (config/settings.yaml → personalised).",
+    open_tender: "Open tender on portal", portal_tip: "Copies {id} and opens the portal list; click \"{org}\", then Ctrl+F and paste",
+    how_open: "How to open this tender and its PDFs", step1: "Click \"Open tender on portal\" (the Tender ID is copied for you).",
+    step2: "On the portal page, click the organisation {org}.", step3: "Press Ctrl+F, paste {id} and click the tender title.",
+    step4: "On the tender page, click a document (NIT PDF, BOQ) and type the captcha to download it.",
+    docs: "Documents on the portal", docs_note: "The portal requires a captcha for each download, so the files can't be linked directly.",
   },
   hi: {
     updated: "अपडेट", source: "स्रोत", tab_new: "आज नए", tab_worth: "पढ़ने योग्य", tab_closing: "3 दिन में बंद",
@@ -69,6 +74,11 @@ const I18N = {
     b_none: "अभी कोई उपयुक्त टेंडर खुला नहीं है।", b_of: "{n} संभव टेंडरों पर विचार किया गया",
     tab_personal: "व्यक्तिगत", b_personal: "आपके व्यक्तिगत अनुभाग", b_open_new: "{o} खुले · आज {n} नए",
     see_all: "सभी देखें", no_sections: "कोई व्यक्तिगत अनुभाग सेट नहीं है (config/settings.yaml → personalised)।",
+    open_tender: "पोर्टल पर टेंडर खोलें", portal_tip: "{id} कॉपी होगा और पोर्टल सूची खुलेगी; \"{org}\" पर क्लिक करें, फिर Ctrl+F से पेस्ट करें",
+    how_open: "यह टेंडर और इसकी PDF कैसे खोलें", step1: "\"पोर्टल पर टेंडर खोलें\" पर क्लिक करें (टेंडर आईडी अपने-आप कॉपी हो जाएगी)।",
+    step2: "पोर्टल पेज पर विभाग {org} पर क्लिक करें।", step3: "Ctrl+F दबाएँ, {id} पेस्ट करें और टेंडर के शीर्षक पर क्लिक करें।",
+    step4: "टेंडर पेज पर दस्तावेज़ (NIT PDF, BOQ) पर क्लिक करें और कैप्चा भरकर डाउनलोड करें।",
+    docs: "पोर्टल पर दस्तावेज़", docs_note: "पोर्टल हर डाउनलोड पर कैप्चा माँगता है, इसलिए फ़ाइलों का सीधा लिंक नहीं दिया जा सकता।",
   },
 };
 function T(key, vars = {}) {
@@ -199,9 +209,31 @@ function card(t) {
       ${hasDetail(t) ? `<span>${T("value")}: <span class="money">${inr(t.value)}</span></span><span>${T("emd")}: ${inr(t.emd)}</span>` : `<span>${T("details_pending")}</span>`}
       <span>${T("closes")}: <b>${fmtDate(t.closing)}</b></span>
       ${t.location ? `<span>📍 ${esc(t.location)}</span>` : ""}
+      ${t.status === "active" ? portalButton(t, "small") : ""}
     </div>
     ${a.summary && a.source === "llm" ? `<p class="summary">${esc(pickLang(a.summary, a.summary_hi))}</p>` : ""}
   </article>`;
+}
+
+const ORG_URL = "https://eproc.rajasthan.gov.in/nicgep/app?page=FrontEndTendersByOrganisation&service=page";
+
+function portalButton(t, cls = "") {
+  const url = state.data.portal.org_url || ORG_URL;
+  return `<a class="portal ${cls}" href="${esc(url)}" target="_blank" rel="noopener" data-copy="${esc(t.id)}"
+    title="${esc(T("portal_tip", { org: t.org || "", id: t.id }))}">${T("open_tender")} ↗</a>`;
+}
+
+function tenderRef(id) {
+  const t = state.data.tenders.find((x) => x.id === id);
+  return { id, org: t?.org || "" };
+}
+
+function portalSteps(t) {
+  return `<ol class="steps">
+    <li>${T("step1")}</li>
+    <li>${T("step2", { org: `<b>${esc(t.org || "")}</b>` })}</li>
+    <li>${T("step3", { id: `<b>${esc(t.id)}</b>` })}</li>
+    <li>${T("step4")}</li></ol>`;
 }
 
 function sectionName(id) {
@@ -250,6 +282,8 @@ function renderBriefing() {
         ${L(p, "why") ? `<p><b>${T("b_why")}:</b> ${esc(L(p, "why"))}</p>` : ""}
         ${(state.lang === "hi" && p.risks_hi?.length ? p.risks_hi : p.risks_en)?.length ? `<b>${T("b_risks")}</b>${list(state.lang === "hi" && p.risks_hi?.length ? p.risks_hi : p.risks_en)}` : ""}
         ${L(p, "next_step") ? `<p class="next"><b>${T("b_next")}:</b> ${esc(L(p, "next_step"))}</p>` : ""}
+        <div class="actions">${portalButton(tenderRef(p.tender_id))}
+          <a class="secondary" href="?id=${encodeURIComponent(p.tender_id)}" data-id="${esc(p.tender_id)}">${T("b_open")}</a></div>
       </div>
     </article>`).join("");
   const advice = state.lang === "hi" && b.advice_hi?.length ? b.advice_hi : b.advice_en;
@@ -261,7 +295,8 @@ function renderBriefing() {
         const bl = state.lang === "hi" && p.blockers_hi?.length ? p.blockers_hi : p.blockers;
         return `<li><a href="?id=${encodeURIComponent(p.tender_id)}" data-id="${esc(p.tender_id)}">${esc(p.title)}</a>
           <span class="meta">${esc(p.location || "")} · ${inr(p.value)} · ${T("b_deadline")}: ${fmtDate(p.closing)}${p.cash_to_bid != null ? ` · ${T("b_cash")}: ₹${Number(p.cash_to_bid).toLocaleString("en-IN")}` : ""}</span>
-          ${bl?.length ? `<span class="blk">⚠ ${esc(bl.join("; "))}</span>` : ""}</li>`;
+          ${bl?.length ? `<span class="blk">⚠ ${esc(bl.join("; "))}</span>` : ""}
+          ${portalButton(tenderRef(p.tender_id), "small")}</li>`;
       }).join("")}</ul>
     </div>`).join("");
   box.innerHTML = `
@@ -278,7 +313,7 @@ function applyLang() {
   document.documentElement.lang = state.lang;
   document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = T(el.dataset.i18n); });
   document.querySelectorAll("[data-i18n-ph]").forEach((el) => { el.placeholder = T(el.dataset.i18nPh); });
-  $("lang").textContent = T("lang_toggle");
+  $("lang").textContent = "🌐 " + T("lang_toggle");
 }
 
 function render() {
@@ -313,6 +348,7 @@ function showDetail(id) {
   const blockers = state.lang === "hi" && a.blockers_hi?.length ? a.blockers_hi : a.blockers;
   const translate = `https://translate.google.com/?sl=en&tl=hi&op=translate&text=${encodeURIComponent(t.title || "")}`;
   $("dlg-body").dataset.id = id;
+  const docs = [...(t.detail?.nit_documents || []), ...(t.detail?.work_documents || [])];
   $("dlg-body").innerHTML = `
     <button class="close" onclick="document.getElementById('dlg').close()">${T("close")}</button>
     <div class="badges">${a.decision ? `<span class="badge ${a.decision}">${decisionText(a.decision)} · ${a.relevance ?? "-"}</span>` : ""}
@@ -321,9 +357,14 @@ function showDetail(id) {
     ${state.lang === "hi" ? `<p class="meta"><a href="${translate}" target="_blank" rel="noopener">${T("translate_title")}</a></p>` : ""}
     <div class="meta"><span>${esc(t.org_chain)}</span></div>
     <div class="actions">
-      <a href="${esc(state.data.portal.url)}" target="_blank" rel="noopener">${T("open_portal")}</a>
+      ${portalButton(t)}
       <button class="secondary" onclick="navigator.clipboard.writeText('${esc(t.id)}');this.textContent='${T("copied")} ${esc(t.id)}'">${T("copy_id")}</button>
       <button class="secondary" onclick="navigator.clipboard.writeText(location.origin+location.pathname+'?id=${esc(t.id)}');this.textContent='${T("link_copied")}'">${T("copy_link")}</button>
+    </div>
+    <div class="box how">
+      <h4>${T("how_open")}</h4>
+      ${portalSteps(t)}
+      ${docs.length ? `<b>${T("docs")}</b><ul>${docs.map((f) => `<li>📄 ${esc(f)}</li>`).join("")}</ul><p class="meta">${T("docs_note")}</p>` : ""}
     </div>
     <div class="box">
       <h4>${a.source === "llm" ? T("ai_analysis") : T("rule_analysis")}</h4>
@@ -346,7 +387,7 @@ function showDetail(id) {
       ${rows}
     </table>
     ${changes ? `<div class="box"><h4>${T("changes")}</h4><ul>${changes}</ul></div>` : ""}
-    <p class="meta">${T("howto")}</p>`;
+`;
   if (!$("dlg").open) $("dlg").showModal();
 }
 
@@ -422,7 +463,15 @@ async function init() {
   ["q", "f-org", "f-sector", "f-decision", "f-value", "sort"].forEach((id) =>
     $(id).addEventListener("input", () => { state.shown = PAGE; render(); }));
   $("more").addEventListener("click", () => { state.shown += PAGE; render(); });
-  $("list").addEventListener("click", (e) => { const c = e.target.closest(".card"); if (c) showDetail(c.dataset.id); });
+  $("list").addEventListener("click", (e) => {
+    if (e.target.closest("a")) return;
+    const c = e.target.closest(".card");
+    if (c) showDetail(c.dataset.id);
+  });
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest?.("a.portal");
+    if (a) navigator.clipboard?.writeText(a.dataset.copy).catch(() => {});
+  });
   renderAll();
   const linked = new URLSearchParams(location.search).get("id");
   if (linked) showDetail(linked);

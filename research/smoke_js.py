@@ -19,7 +19,7 @@ function el(id) {
   return els[id];
 }
 var tabs = ["new","worth","personal","closing","updated","all","closed"].map((t) => ({ dataset: { tab: t, i18n: "tab_" + t }, innerHTML: "", classList: { toggle() {} } }));
-var document = { documentElement: {}, title: "", getElementById: el,
+var document = { documentElement: {}, title: "", getElementById: el, addEventListener(ev, fn) { handlers["document:" + ev] = fn; },
   querySelectorAll(sel) { return sel === "#tabs button" ? tabs : []; } };
 var localStorage = { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = v; } };
 var location = { search: "?id=2026_DLB_604082_1", origin: "https://x", pathname: "/" };
@@ -44,6 +44,8 @@ def main() -> int:
           list: els.list.innerHTML.length, count: els.count.textContent, stats: els.stats.innerHTML.slice(0, 120),
           dialog: els['dlg-body'].innerHTML.length, dlgOpen: els.dlg.open, tab0: tabs[0].innerHTML,
           personalTab: tabs[2].innerHTML, sections: els.sections.innerHTML, sectionsHidden: els.sections.hidden,
+          portalLinks: (els.list.innerHTML.match(/class="portal/g) || []).length + (els.briefing.innerHTML.match(/class="portal/g) || []).length,
+          howOpen: els['dlg-body'].innerHTML.includes('class="box how"'),
           firstCard: els.list.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 200),
           head: els.briefing.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 260)})"""))
     print(json.dumps(out, ensure_ascii=False, indent=1))
