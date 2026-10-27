@@ -163,7 +163,7 @@ function showDetail(id) {
       <tr><td>Bid submission closes</td><td><b>${fmtDate(t.closing)}</b></td></tr>
       <tr><td>Bid opening</td><td>${fmtDate(t.opening)}</td></tr>
       <tr><td>First seen by crawler</td><td>${fmtDate(t.first_seen)}</td></tr>
-      ${t.related?.length ? `<tr><td>Other issues of this tender</td><td>${esc(t.related.join(", "))}</td></tr>` : ""}
+      ${t.related?.length ? `<tr><td>Other lots under the same tender number</td><td>${esc(t.related.join(", "))}</td></tr>` : ""}
       ${rows}
     </table>
     ${changes ? `<div class="box"><h4>Changes detected (corrigendum)</h4><ul>${changes}</ul></div>` : ""}

@@ -3,10 +3,10 @@ from pathlib import Path
 
 import pytest
 
-from crawler.analyse import _validate, rule_analysis
+from crawler.analyse import _validate, parse_llm_json, rule_analysis
 from crawler.gepnic import (
-    ListingRow, SessionExpired, parse_amount, parse_date, parse_detail, parse_org_list,
-    parse_org_tenders,
+    TENDER_ID_RE, ListingRow, SessionExpired, parse_amount, parse_date, parse_detail,
+    parse_org_list, parse_org_tenders,
 )
 from crawler.store import Store, family_key
 
@@ -24,6 +24,7 @@ def test_parse_helpers():
     assert parse_amount("15,00,000") == 1500000
     assert parse_amount("NA") is None
     assert family_key("2026_CEPWD_604884_4") == "2026_CEPWD_604884"
+    assert TENDER_ID_RE.search("[TN-2206][2026_JdVVN_603006_1]").group(0) == "2026_JdVVN_603006_1"
 
 
 def test_org_list():
@@ -100,12 +101,16 @@ def test_dedup_lifecycle(tmp_path):
 
 def test_rule_analysis_and_validation():
     record = {"tender_id": "2026_X_1_2", "title": "Laying pipeline for water supply in Jodhpur",
-              "closing": "2026-10-28T10:00", "detail": {"tender_category": "Works", "payment_mode": "Offline"}}
+              "closing": "2026-10-28T10:00", "lots_in_group": 3,
+              "detail": {"tender_category": "Works", "payment_mode": "Offline"}}
     profile = {"interests": ["water supply and pipelines"], "locations": ["Jodhpur"]}
     a = rule_analysis(record, profile, datetime(2026, 10, 27, 9))
     assert a["sector"] == "Water & Sanitation"
     assert a["source"] == "rules"
-    assert "re-tender" in a["risk_flags"]
+    assert "one lot of many" in a["risk_flags"]
+
+    fenced = '```json\n{"results": [{"tender_id": "A", "decision": "skip"}]}\n```'
+    assert parse_llm_json(fenced) == [{"tender_id": "A", "decision": "skip"}]
 
     v = _validate({"decision": "Worth Reading", "relevance": "180", "sector": "Bogus"}, datetime(2026, 10, 27), "m")
     assert v["decision"] == "worth_reading" and v["relevance"] == 100 and v["sector"] == "Other"

@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 
 log = logging.getLogger(__name__)
 
-TENDER_ID_RE = re.compile(r"\d{4}_[A-Z0-9]+_\d+_\d+")
+TENDER_ID_RE = re.compile(r"\d{4}_[A-Za-z0-9]+_\d+_\d+")
 DOC_RE = re.compile(r"^[^\s].*\.(?:pdf|xlsx?|docx?|zip|rar|dwg|jpe?g)$", re.I)
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "

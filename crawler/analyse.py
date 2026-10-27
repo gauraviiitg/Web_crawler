@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from datetime import datetime
 
@@ -25,6 +26,7 @@ SECTORS = [
 ]
 WORK_TYPES = ["Construction", "Supply", "Service", "Maintenance", "Consultancy", "Rate Contract", "Other"]
 DECISIONS = ["worth_reading", "maybe", "skip"]
+GENERIC_WORDS = {"works", "work", "services", "service", "supply", "hardware", "equipment", "and"}
 
 SECTOR_KEYWORDS = {
     "Roads & Bridges": ["road", "bridge", "highway", "culvert", "bt ", "patch repair", "mdr", "odr", "pavement"],
@@ -55,7 +57,7 @@ tender documents, based on the reader profile. Be concrete and brief. Answer ONL
   "decision": "worth_reading | maybe | skip",
   "relevance": <integer 0-100 for the reader profile>,
   "reason": "<max 25 words: why this decision>",
-  "risk_flags": ["<short flags e.g. 'closes in 2 days', 'high EMD', 'value not disclosed', 're-tender', 'vague scope', 'offline payment'>"],
+  "risk_flags": ["<short flags e.g. 'closes in 2 days', 'high EMD', 'value not disclosed', 'vague scope', 'offline payment', 'one lot of many'>"],
   "key_requirements": ["<max 3 short items the bidder must have/do, from the data given>"],
   "tags": ["<max 5 short keywords>"]
 }]}
@@ -96,7 +98,7 @@ def tender_prompt_view(record: dict, now: datetime) -> dict:
         "tenderer_class": d.get("tenderer_class"),
         "payment_mode": d.get("payment_mode"),
         "days_left_to_bid": round(days, 1) if days is not None else None,
-        "is_retender": not record["tender_id"].endswith("_1"),
+        "other_lots_with_same_number": record.get("lots_in_group"),
         "documents": (d.get("nit_documents") or []) + (d.get("work_documents") or []),
     }
     return {k: v for k, v in view.items() if v not in (None, "", [], "NA")}
@@ -133,7 +135,10 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
 
     interests = [i.lower() for i in profile.get("interests", [])]
     locations = [l.lower() for l in profile.get("locations", [])]
-    hits = [i for i in interests if any(w in text for w in i.split() if len(w) > 3)]
+    hits = [
+        i for i in interests
+        if any(re.search(rf"\b{re.escape(w)}", text) for w in i.split() if len(w) > 3 and w not in GENERIC_WORDS)
+    ]
     loc_hit = any(l in text or l in (d.get("location") or "").lower() for l in locations)
     days = _days_left(record.get("closing"), now)
     flags = []
@@ -143,15 +148,16 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
         flags.append("details not fetched yet")
     elif not d.get("tender_value"):
         flags.append("value not disclosed")
-    if not record["tender_id"].endswith("_1"):
-        flags.append("re-tender")
+    if record.get("lots_in_group"):
+        flags.append("one lot of many")
     if (d.get("payment_mode") or "").lower() == "offline":
         flags.append("offline payment")
 
-    relevance = min(100, 25 * len(hits) + (20 if loc_hit else 0) + (10 if d.get("tender_value") else 0))
+    relevance = (30 * min(len(hits), 2) + (20 if loc_hit else 0) + (10 if d.get("tender_value") else 0)
+                 + (10 if days is not None and days >= 5 else 0))
     if days is not None and days < 1:
         relevance = max(0, relevance - 30)
-    decision = "worth_reading" if relevance >= 50 else "maybe" if relevance >= 25 else "skip"
+    decision = "worth_reading" if hits and relevance >= 70 else "maybe" if hits and relevance >= 40 else "skip"
     title = record.get("title") or d.get("title") or ""
     return {
         "summary": title[:200],
@@ -205,7 +211,16 @@ class GitHubModelsClient:
                 timeout=120,
             )
             if response.status_code == 200:
-                return response.json()["choices"][0]["message"]["content"]
+                try:
+                    content = response.json()["choices"][0]["message"]["content"]
+                except (ValueError, KeyError, IndexError, TypeError) as exc:
+                    raise RuntimeError(
+                        f"unexpected LLM response ({exc}); content-type="
+                        f"{response.headers.get('Content-Type')} body={response.text[:300]!r}"
+                    ) from exc
+                if not content:
+                    raise RuntimeError(f"empty LLM content: {response.text[:300]!r}")
+                return content
             if response.status_code == 429:
                 retry_after = int(response.headers.get("retry-after", "60") or 60)
                 if retry_after > 120:
@@ -229,6 +244,18 @@ class GitHubModelsClient:
             log.info("switching LLM model to %s", self.model_in_use)
             return True
         return False
+
+
+def parse_llm_json(content: str) -> list[dict]:
+    """Parse the model's JSON answer, tolerating code fences or text around it."""
+    text = content.strip()
+    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1:
+        raise ValueError(f"no JSON object in LLM answer: {content[:300]!r}")
+    data = json.loads(text[start:end + 1])
+    results = data.get("results", data if isinstance(data, list) else [])
+    return results if isinstance(results, list) else []
 
 
 def _validate(item: dict, now: datetime, model: str, full_details: bool = True) -> dict:
@@ -264,6 +291,12 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
     """Analyse active tenders lacking an LLM analysis. Mutates records; returns stats."""
     profile = cfg["profile"]
     stats = {"llm": 0, "rules": 0, "llm_error": None, "model": None}
+    family_sizes: dict[str, int] = {}
+    for r in tenders.values():
+        if r.get("status") == "active":
+            family_sizes[r.get("family")] = family_sizes.get(r.get("family"), 0) + 1
+    for r in tenders.values():
+        r["lots_in_group"] = family_sizes.get(r.get("family"), 1) - 1 or None
     pending = [
         r for r in tenders.values()
         if r.get("status") == "active" and (r.get("analysis") or {}).get("source") != "llm"
@@ -271,9 +304,8 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
     pending.sort(key=lambda r: (r.get("first_seen", ""), r.get("closing") or ""), reverse=True)
 
     for record in pending:
-        if not record.get("analysis"):
-            record["analysis"] = rule_analysis(record, profile, now)
-            stats["rules"] += 1
+        record["analysis"] = rule_analysis(record, profile, now)
+        stats["rules"] += 1
 
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_MODELS_TOKEN")
     if not token:
@@ -283,7 +315,11 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
     client = GitHubModelsClient(cfg["llm"], token)
     batch_size = cfg["llm"].get("batch_size", 8)
     system = SYSTEM_PROMPT + "\n\nREADER PROFILE:\n" + profile_text(profile)
+    consecutive_failures = 0
     for start in range(0, len(pending), batch_size):
+        if consecutive_failures >= 3:
+            log.error("stopping LLM analysis after 3 consecutive failures")
+            break
         batch = pending[start:start + batch_size]
         payload = [tender_prompt_view(r, now) for r in batch]
         messages = [
@@ -292,14 +328,15 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
                 now.strftime("%d %b %Y"), json.dumps(payload, ensure_ascii=False))},
         ]
         try:
-            content = client.complete(messages)
-            results = json.loads(content).get("results", [])
+            results = parse_llm_json(client.complete(messages))
+            consecutive_failures = 0
         except QuotaExhausted as exc:
             stats["llm_error"] = str(exc)
             break
         except (RuntimeError, ValueError, KeyError, requests.RequestException) as exc:
             log.warning("LLM batch failed: %s", exc)
-            stats["llm_error"] = str(exc)[:200]
+            stats["llm_error"] = str(exc)[:300]
+            consecutive_failures += 1
             continue
         by_id = {r["tender_id"]: r for r in batch}
         for item in results:

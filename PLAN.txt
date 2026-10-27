@@ -109,9 +109,10 @@ A4. Fields available on the detail page (all VERIFIED on a live tender)
 A5. Tender ID format
   YYYY_ORGCODE_NUMBER_N   e.g. 2026_CEPWD_604884_4
     - YYYY      = year
-    - ORGCODE   = org short code (CEPWD, AGRIC, MEDIC, RMSCL, PHCJO...)
-    - NUMBER    = unique tender number on the portal
-    - N         = re-tender / instance counter (_1 first issue, _2 re-issue...)
+    - ORGCODE   = org short code, mixed case (CEPWD, AGRIC, MEDIC, JdVVN, ...)
+    - NUMBER    = tender number on the portal
+    - N         = instance counter: re-issues AND separate lots of one NIT share NUMBER
+                  (e.g. 2026_JdVVN_589238_1 ... _48 are 48 lots of one notice)
   => Unique key = full Tender ID.
   => "Retender family" key = YYYY_ORGCODE_NUMBER (lets the report say "re-tender of ...").
 
