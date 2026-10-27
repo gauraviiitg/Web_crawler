@@ -25,6 +25,11 @@ jobs:
       run:
         shell: cmd
     steps:
+      # actions/checkout gets no output from Git for Windows' cmd\git.exe wrapper under the runner
+      # and falls back to a tarball without .git; the real git.exe works.
+      - name: Use Git's own git.exe
+        run: echo C:\Program Files\Git\mingw64\bin>>"%GITHUB_PATH%"
+
       - uses: actions/checkout@v5
 
       - name: Python environment
