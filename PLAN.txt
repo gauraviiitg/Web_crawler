@@ -8,7 +8,9 @@ DECISIONS (27-Oct-2026)
 -----------------------
   - Documents: metadata only + flag "worth reading" tenders; PDFs downloaded manually
     by a person on the portal (Part B option 2). No captcha solving.
-  - LLM: GitHub Models via the workflow GITHUB_TOKEN ("models: read") (Part D option a).
+  - LLM: GitHub Models was chosen, but it was retired on 30-Jul-2026 (its endpoint now only
+    answers "OK"). Replaced by free tiers of Google Gemini (gemini-3.8-flash) and Groq
+    (openai/gpt-oss-120b), keys stored as repo secrets GEMINI_API_KEY / GROQ_API_KEY.
   - Website: make gauraviiitg/Web_crawler public and serve GitHub Pages from it (Part F).
   - LLM classifies every tender and decides worth_reading / maybe / skip.
   - Report must be live by 09:00 IST; workflow starts 08:30 IST (cron "0 3 * * *").

@@ -35,16 +35,25 @@ profile:
   max_value_inr: 0   # 0 = no upper limit
 
 llm:
-  # GitHub Models (free tier) - authenticated with the workflow's GITHUB_TOKEN.
-  endpoints:
-    - https://models.github.ai/inference/chat/completions
-    - https://models.inference.ai.azure.com/chat/completions
-  models:
-    - openai/gpt-4o-mini
-    - openai/gpt-4.1-mini
+  # Free-tier, OpenAI-compatible providers, tried in order. A provider is used only if its
+  # API key is set as a GitHub repository secret with the name given in api_key_env.
   batch_size: 8
-  max_requests_per_run: 120     # free tier allows ~150 requests/day for small models
-  seconds_between_requests: 5   # free tier allows ~15 requests/minute
+  providers:
+    - name: gemini
+      endpoint: https://generativelanguage.googleapis.com/v1beta/openai/chat/completions
+      api_key_env: GEMINI_API_KEY
+      models:
+        - gemini-3.8-flash
+      max_requests_per_run: 200
+      seconds_between_requests: 6    # stay under the free-tier requests/minute limit
+    - name: groq
+      endpoint: https://api.groq.com/openai/v1/chat/completions
+      api_key_env: GROQ_API_KEY
+      models:
+        - openai/gpt-oss-120b
+        - qwen/qwen3.8-27b
+      max_requests_per_run: 400      # free tier: ~1,000 requests/day
+      seconds_between_requests: 40   # free tier: 8K tokens/minute; one batch is ~5K tokens
 
 site:
   title: Rajasthan Govt Tenders - Daily Report

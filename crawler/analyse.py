@@ -1,6 +1,7 @@
 """Tender classification and decision-making.
 
-Primary: an LLM on GitHub Models (free tier, authenticated with GITHUB_TOKEN).
+Primary: a free-tier LLM (Gemini, then Groq) via OpenAI-compatible APIs; keys come from
+repository secrets (GEMINI_API_KEY, GROQ_API_KEY).
 Fallback: keyword rules, so every tender always has a classification. Rule results are
 replaced by LLM results on a later run when free-tier quota is available.
 """
@@ -178,87 +179,66 @@ class QuotaExhausted(Exception):
     pass
 
 
-class GitHubModelsClient:
-    def __init__(self, cfg: dict, token: str):
-        self.endpoints = list(cfg.get("endpoints") or [cfg["endpoint"]])
-        self.endpoint = self.endpoints[0]
-        self.models = list(cfg["models"])
-        self.delay = cfg.get("seconds_between_requests", 5)
-        self.max_requests = cfg.get("max_requests_per_run", 120)
-        self.token = token
+class LLMClient:
+    """OpenAI-compatible chat-completions client for one provider (Gemini, Groq, ...)."""
+
+    def __init__(self, provider: dict, api_key: str):
+        self.name = provider["name"]
+        self.endpoint = provider["endpoint"]
+        self.models = list(provider["models"])
+        self.delay = provider.get("seconds_between_requests", 5)
+        self.max_requests = provider.get("max_requests_per_run", 100)
+        self.json_mode = provider.get("json_mode", True)
+        self.api_key = api_key
         self.requests_made = 0
         self.model_in_use = self.models[0]
 
     def complete(self, messages: list[dict]) -> str:
         if self.requests_made >= self.max_requests:
-            raise QuotaExhausted("per-run request budget used")
-        for _ in range(3):
+            raise QuotaExhausted(f"{self.name}: per-run request budget used")
+        for _ in range(4):
             time.sleep(self.delay)
             self.requests_made += 1
-            model = self.model_in_use
-            if "azure.com" in self.endpoint:
-                model = model.split("/", 1)[-1]
+            body = {"model": self.model_in_use, "messages": messages, "temperature": 0.2}
+            if self.json_mode:
+                body["response_format"] = {"type": "json_object"}
             response = requests.post(
                 self.endpoint,
-                headers={
-                    "Authorization": f"Bearer {self.token}",
-                    "Accept": "application/json",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": model,
-                    "messages": messages,
-                    "temperature": 0.2,
-                    "response_format": {"type": "json_object"},
-                },
-                timeout=120,
+                headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                json=body,
+                timeout=180,
                 allow_redirects=False,
             )
             if response.status_code == 200:
                 try:
                     content = response.json()["choices"][0]["message"]["content"]
                 except (ValueError, KeyError, IndexError, TypeError) as exc:
-                    log.warning("unexpected response from %s: content-type=%s body=%r",
-                                self.endpoint, response.headers.get("Content-Type"), response.text[:300])
-                    if self._next_endpoint():
-                        continue
                     raise RuntimeError(
-                        f"unexpected LLM response ({exc}); content-type="
+                        f"{self.name}: unexpected response ({exc}); content-type="
                         f"{response.headers.get('Content-Type')} body={response.text[:300]!r}"
                     ) from exc
                 if not content:
-                    raise RuntimeError(f"empty LLM content: {response.text[:300]!r}")
+                    raise RuntimeError(f"{self.name}: empty content: {response.text[:300]!r}")
                 return content
             if response.status_code == 429:
-                retry_after = int(response.headers.get("retry-after", "60") or 60)
-                if retry_after > 120:
+                retry_after = int(float(response.headers.get("retry-after", "30") or 30))
+                if retry_after > 120 or "day" in response.text.lower():
                     if self._next_model():
                         continue
-                    raise QuotaExhausted(f"rate limited for {retry_after}s")
-                log.warning("rate limited, sleeping %ss", retry_after)
+                    raise QuotaExhausted(f"{self.name}: daily quota reached ({response.text[:150]})")
+                log.warning("%s rate limited, sleeping %ss", self.name, retry_after)
                 time.sleep(retry_after)
                 continue
-            if response.is_redirect:
-                log.warning("%s redirected to %s", self.endpoint, response.headers.get("Location"))
-                if self._next_endpoint():
-                    continue
+            if response.status_code == 400 and self.json_mode and "response_format" in response.text:
+                log.warning("%s does not accept JSON mode; retrying without it", self.name)
+                self.json_mode = False
+                continue
             if response.status_code in (400, 404) and "model" in response.text.lower() and self._next_model():
                 continue
             if response.status_code in (401, 403):
-                log.warning("%s refused: %s %s", self.endpoint, response.status_code, response.text[:200])
-                if self._next_endpoint():
-                    continue
-                raise QuotaExhausted(f"not authorised for GitHub Models: {response.status_code} {response.text[:200]}")
-            log.warning("LLM call failed %s: %s", response.status_code, response.text[:300])
-        raise RuntimeError("LLM call failed after retries")
-
-    def _next_endpoint(self) -> bool:
-        idx = self.endpoints.index(self.endpoint)
-        if idx + 1 < len(self.endpoints):
-            self.endpoint = self.endpoints[idx + 1]
-            log.info("switching LLM endpoint to %s", self.endpoint)
-            return True
-        return False
+                raise QuotaExhausted(f"{self.name}: key rejected ({response.status_code} {response.text[:200]})")
+            log.warning("%s call failed %s: %s", self.name, response.status_code, response.text[:300])
+        raise RuntimeError(f"{self.name}: call failed after retries")
 
     def _next_model(self) -> bool:
         idx = self.models.index(self.model_in_use)
@@ -330,20 +310,26 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
         record["analysis"] = rule_analysis(record, profile, now)
         stats["rules"] += 1
 
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_MODELS_TOKEN")
-    if not token:
-        stats["llm_error"] = "GITHUB_TOKEN not set - rule-based analysis only"
+    clients = [
+        LLMClient(p, os.environ[p["api_key_env"]])
+        for p in cfg["llm"]["providers"]
+        if os.environ.get(p["api_key_env"])
+    ]
+    if not clients:
+        names = ", ".join(p["api_key_env"] for p in cfg["llm"]["providers"])
+        stats["llm_error"] = f"no LLM API key set ({names}) - rule-based analysis only"
+        stats["llm_pending"] = len(pending)
         return stats
 
-    client = GitHubModelsClient(cfg["llm"], token)
     batch_size = cfg["llm"].get("batch_size", 8)
     system = SYSTEM_PROMPT + "\n\nREADER PROFILE:\n" + profile_text(profile)
+    client = clients.pop(0)
     consecutive_failures = 0
-    for start in range(0, len(pending), batch_size):
-        if consecutive_failures >= 3:
-            log.error("stopping LLM analysis after 3 consecutive failures")
-            break
-        batch = pending[start:start + batch_size]
+    stats["models"] = {}
+    stats["llm_requests"] = 0
+    batches = [pending[i:i + batch_size] for i in range(0, len(pending), batch_size)]
+    while batches and client is not None:
+        batch = batches[0]
         payload = [tender_prompt_view(r, now) for r in batch]
         messages = [
             {"role": "system", "content": system},
@@ -351,24 +337,31 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
                 now.strftime("%d %b %Y"), json.dumps(payload, ensure_ascii=False))},
         ]
         try:
+            before = client.requests_made
             results = parse_llm_json(client.complete(messages))
+            stats["llm_requests"] += client.requests_made - before
             consecutive_failures = 0
-        except QuotaExhausted as exc:
-            stats["llm_error"] = str(exc)
-            break
-        except (RuntimeError, ValueError, KeyError, requests.RequestException) as exc:
+        except (QuotaExhausted, RuntimeError, ValueError, KeyError, requests.RequestException) as exc:
             log.warning("LLM batch failed: %s", exc)
             stats["llm_error"] = str(exc)[:300]
             consecutive_failures += 1
+            if isinstance(exc, QuotaExhausted) or consecutive_failures >= 3:
+                log.warning("giving up on %s for this run", client.name)
+                client = clients.pop(0) if clients else None
+                consecutive_failures = 0
+            else:
+                batches.pop(0)
             continue
+        batches.pop(0)
+        label = f"{client.name}:{client.model_in_use}"
         by_id = {r["tender_id"]: r for r in batch}
         for item in results:
             record = by_id.get(str(item.get("tender_id", "")).strip())
             if record is not None:
-                record["analysis"] = _validate(item, now, client.model_in_use, bool(record.get("detail")))
+                record["analysis"] = _validate(item, now, label, bool(record.get("detail")))
                 stats["llm"] += 1
-    stats["model"] = client.model_in_use
-    stats["llm_requests"] = client.requests_made
+                stats["models"][label] = stats["models"].get(label, 0) + 1
+        stats["model"] = label
     stats["llm_pending"] = sum(
         1 for r in tenders.values()
         if r.get("status") == "active" and (r.get("analysis") or {}).get("source") != "llm"

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -111,8 +110,7 @@ def main() -> int:
     run["requests"] = client.request_count
 
     if args.no_llm:
-        os.environ.pop("GITHUB_TOKEN", None)
-        os.environ.pop("GH_MODELS_TOKEN", None)
+        cfg["llm"]["providers"] = []
     run["analysis"] = analyse_tenders(store.tenders, cfg, now)
     run["pruned"] = store.prune(now, cfg["site"].get("prune_closed_days", 60))
     run["active"] = sum(1 for r in store.tenders.values() if r.get("status") == "active")
