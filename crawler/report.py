@@ -43,7 +43,7 @@ def site_record(record: dict, related: list[str]) -> dict:
     }
 
 
-def build_site(store, cfg: dict, run: dict, now: datetime, root: Path) -> Path:
+def build_site(store, cfg: dict, run: dict, now: datetime, root: Path, briefing: dict | None = None) -> Path:
     site_dir = root / "site"
     if site_dir.exists():
         shutil.rmtree(site_dir)
@@ -61,6 +61,7 @@ def build_site(store, cfg: dict, run: dict, now: datetime, root: Path) -> Path:
         "generated_at": now.strftime("%Y-%m-%dT%H:%M"),
         "run": run,
         "runs": store.data.get("runs", [])[-14:],
+        "briefing": briefing,
         "tenders": tenders,
     }
     (site_dir / "data.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

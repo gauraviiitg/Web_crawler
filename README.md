@@ -17,6 +17,12 @@ whether it is worth reading, and publishes the report on GitHub Pages.
    work type, relevance score, risk flags and a decision (`worth_reading` / `maybe` / `skip`).
    Providers are tried in order: Google Gemini (`gemini-3.8-flash`), then Groq
    (`openai/gpt-oss-120b`). Keyword rules are used until the LLM has analysed a tender.
+   Judging follows the company profile in `config/settings.yaml` (eligibility, cash to bid,
+   blockers), with English and Hindi text.
+4. `crawler/briefing.py` writes the daily "Top picks for us" section shown at the top of the
+   site: a ranked shortlist with why, risks and the next step, in English and Hindi (one LLM
+   call; a template briefing is used without a key).
+5. The site has an English/हिंदी toggle, and `?id=<TenderID>` links open a tender directly.
 
 ## LLM setup (free)
 

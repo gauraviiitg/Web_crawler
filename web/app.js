@@ -1,6 +1,91 @@
 const PAGE = 40;
-const state = { data: null, tab: "new", shown: PAGE, latestDay: "" };
+const state = { data: null, tab: "new", shown: PAGE, latestDay: "", lang: localStorage.getItem("lang") === "hi" ? "hi" : "en" };
 const $ = (id) => document.getElementById(id);
+
+const I18N = {
+  en: {
+    updated: "Updated", source: "Source", tab_new: "New today", tab_worth: "Worth reading",
+    tab_closing: "Closing in 3 days", tab_updated: "Updated", tab_all: "All active", tab_closed: "Recently closed",
+    search: "Search title, tender ID, organisation, location...", all_orgs: "All organisations",
+    all_sectors: "All sectors", any_decision: "Any decision", worth_reading: "Worth reading", maybe: "Maybe",
+    skip: "Skip", any_value: "Any value", v1: "Below ₹10 lakh", v2: "₹10 lakh – ₹1 crore", v3: "₹1 – ₹10 crore",
+    v4: "Above ₹10 crore", v5: "Value not disclosed", sort_relevance: "Sort: relevance",
+    sort_closing: "Sort: closing soonest", sort_newest: "Sort: newest", sort_value: "Sort: highest value",
+    more: "Show more",
+    footer: "Tender data is read from public pages of the Rajasthan eProcurement portal. Classification and \"worth reading\" decisions are AI-generated and can be wrong — always verify on the official portal before bidding. To open a tender: go to the portal → Search → enter the Tender ID.",
+    lang_toggle: "हिंदी", st_active: "Active tenders", st_new: "New today", st_worth: "Worth reading",
+    st_closing: "Closing in 3 days", st_value: "Total disclosed value", not_disclosed: "Not disclosed",
+    badge_new: "NEW", badge_upd: "UPDATED", closes_today: "Closes today", closes_in: "Closes in {n} days",
+    rule_based: "rule-based", rule_based_tip: "AI analysis pending; keyword rules used", value: "Value", emd: "EMD",
+    closes: "Closes", details_pending: "Value/EMD: details pending", tenders: "{n} tenders", tender: "1 tender",
+    empty: "No tenders here", empty_new: " today — nothing new was published since the last run",
+    close: "Close", open_portal: "Open portal", copy_id: "Copy Tender ID", copied: "Copied", copy_link: "Copy link",
+    link_copied: "Link copied", ai_analysis: "AI analysis", rule_analysis: "Rule-based analysis (AI analysis pending)",
+    why: "Why", cash_to_bid: "Cash to bid (startup/MSE, excl. stock)", blockers: "Blockers",
+    key_req: "Key requirements", risk_flags: "Risk flags", model: "Model", listing_only: "based on listing only",
+    no_detail: "Full tender details (value, EMD, eligibility) could not be fetched yet; the crawler retries on the next run.",
+    tender_id: "Tender ID", ref_no: "Reference no.", bid_closes: "Bid submission closes", bid_opening: "Bid opening",
+    first_seen: "First seen by crawler", other_lots: "Other lots under the same tender number",
+    changes: "Changes detected (corrigendum)", details_changed: "details changed",
+    howto: "To open this tender: Open portal → Search → paste the Tender ID. Documents (PDF/BOQ) are downloaded on the portal.",
+    translate_title: "Translate title (Google)", llm_pending: "AI analysis pending for {n} tenders (free-tier limit; continues next run)",
+    last_run_problem: "Last run problem: {e} — showing previous data.", load_error: "Could not load data: {e}",
+    b_title: "Today's top picks for us", b_why: "Why", b_risks: "Risks", b_next: "Next step",
+    b_cash: "Cash to bid", b_deadline: "Deadline", b_days: "{n} days left", b_open: "Open details",
+    b_tips: "Tips for this week", b_by_ai: "Written by AI ({m})", b_template: "Template briefing — add a free AI key for written advice",
+    b_none: "No suitable tenders open right now.", b_of: "{n} feasible tenders considered",
+  },
+  hi: {
+    updated: "अपडेट", source: "स्रोत", tab_new: "आज नए", tab_worth: "पढ़ने योग्य", tab_closing: "3 दिन में बंद",
+    tab_updated: "संशोधित", tab_all: "सभी सक्रिय", tab_closed: "हाल में बंद",
+    search: "शीर्षक, टेंडर आईडी, विभाग, स्थान खोजें...", all_orgs: "सभी विभाग", all_sectors: "सभी क्षेत्र",
+    any_decision: "कोई भी निर्णय", worth_reading: "पढ़ने योग्य", maybe: "शायद", skip: "छोड़ें", any_value: "कोई भी मूल्य",
+    v1: "₹10 लाख से कम", v2: "₹10 लाख – ₹1 करोड़", v3: "₹1 – ₹10 करोड़", v4: "₹10 करोड़ से अधिक", v5: "मूल्य घोषित नहीं",
+    sort_relevance: "क्रम: प्रासंगिकता", sort_closing: "क्रम: जल्द बंद होने वाले", sort_newest: "क्रम: नवीनतम",
+    sort_value: "क्रम: अधिकतम मूल्य", more: "और दिखाएँ",
+    footer: "टेंडर डेटा राजस्थान ई-प्रोक्योरमेंट पोर्टल के सार्वजनिक पृष्ठों से लिया गया है। वर्गीकरण और \"पढ़ने योग्य\" निर्णय एआई द्वारा बनाए गए हैं और गलत हो सकते हैं — बोली लगाने से पहले आधिकारिक पोर्टल पर अवश्य जाँचें। टेंडर खोलने के लिए: पोर्टल → Search → टेंडर आईडी डालें।",
+    lang_toggle: "English", st_active: "सक्रिय टेंडर", st_new: "आज नए", st_worth: "पढ़ने योग्य", st_closing: "3 दिन में बंद",
+    st_value: "कुल घोषित मूल्य", not_disclosed: "घोषित नहीं", badge_new: "नया", badge_upd: "संशोधित",
+    closes_today: "आज बंद", closes_in: "{n} दिन में बंद", rule_based: "नियम-आधारित",
+    rule_based_tip: "एआई विश्लेषण लंबित; कीवर्ड नियम प्रयुक्त", value: "मूल्य", emd: "ईएमडी", closes: "अंतिम तिथि",
+    details_pending: "मूल्य/ईएमडी: विवरण लंबित", tenders: "{n} टेंडर", tender: "1 टेंडर", empty: "यहाँ कोई टेंडर नहीं",
+    empty_new: " — पिछले रन के बाद कोई नया टेंडर प्रकाशित नहीं हुआ", close: "बंद करें", open_portal: "पोर्टल खोलें",
+    copy_id: "टेंडर आईडी कॉपी करें", copied: "कॉपी हुआ", copy_link: "लिंक कॉपी करें", link_copied: "लिंक कॉपी हुआ",
+    ai_analysis: "एआई विश्लेषण", rule_analysis: "नियम-आधारित विश्लेषण (एआई विश्लेषण लंबित)", why: "क्यों",
+    cash_to_bid: "बोली हेतु नकद (स्टार्टअप/एमएसई, माल छोड़कर)", blockers: "बाधाएँ", key_req: "मुख्य आवश्यकताएँ",
+    risk_flags: "जोखिम", model: "मॉडल", listing_only: "केवल सूची के आधार पर",
+    no_detail: "पूरा विवरण (मूल्य, ईएमडी, पात्रता) अभी प्राप्त नहीं हुआ; क्रॉलर अगले रन में फिर प्रयास करेगा।",
+    tender_id: "टेंडर आईडी", ref_no: "संदर्भ संख्या", bid_closes: "बोली जमा करने की अंतिम तिथि", bid_opening: "बोली खुलने की तिथि",
+    first_seen: "क्रॉलर ने पहली बार देखा", other_lots: "इसी टेंडर संख्या के अन्य लॉट", changes: "बदलाव (शुद्धिपत्र)",
+    details_changed: "विवरण बदला",
+    howto: "टेंडर खोलने के लिए: पोर्टल खोलें → Search → टेंडर आईडी डालें। दस्तावेज़ (PDF/BOQ) पोर्टल से डाउनलोड करें।",
+    translate_title: "शीर्षक का हिंदी अनुवाद (Google)", llm_pending: "{n} टेंडरों का एआई विश्लेषण लंबित (मुफ़्त सीमा; अगले रन में जारी)",
+    last_run_problem: "पिछले रन में समस्या: {e} — पिछला डेटा दिखाया जा रहा है।", load_error: "डेटा लोड नहीं हो सका: {e}",
+    b_title: "आज हमारे लिए सर्वश्रेष्ठ टेंडर", b_why: "क्यों", b_risks: "जोखिम", b_next: "अगला कदम", b_cash: "बोली हेतु नकद",
+    b_deadline: "अंतिम तिथि", b_days: "{n} दिन शेष", b_open: "विवरण देखें", b_tips: "इस सप्ताह के सुझाव",
+    b_by_ai: "एआई द्वारा लिखित ({m})", b_template: "टेम्पलेट सलाह — लिखित सलाह के लिए मुफ़्त एआई कुंजी जोड़ें",
+    b_none: "अभी कोई उपयुक्त टेंडर खुला नहीं है।", b_of: "{n} संभव टेंडरों पर विचार किया गया",
+  },
+};
+function T(key, vars = {}) {
+  const s = I18N[state.lang][key] ?? I18N.en[key] ?? key;
+  return s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
+}
+const pickLang = (en, hi) => (state.lang === "hi" && hi ? hi : en);
+
+const LABELS_HI = {
+  ref_no: "संदर्भ संख्या", tender_type: "टेंडर प्रकार", form_of_contract: "अनुबंध का स्वरूप", tender_category: "श्रेणी",
+  product_category: "उत्पाद श्रेणी", sub_category: "उप श्रेणी", contract_type: "अनुबंध प्रकार", covers: "कवर की संख्या",
+  payment_mode: "भुगतान का तरीका", tender_value: "टेंडर मूल्य", emd: "ईएमडी", emd_percentage: "ईएमडी %",
+  emd_exemption: "ईएमडी छूट", tender_fee: "टेंडर शुल्क", processing_fee: "प्रोसेसिंग शुल्क", fee_exemption: "शुल्क छूट",
+  description: "कार्य विवरण", pre_qualification: "पूर्व-योग्यता", remarks: "टिप्पणी", location: "स्थान", pincode: "पिनकोड",
+  period_of_work_days: "कार्य अवधि (दिन)", bid_validity_days: "बोली वैधता (दिन)", tenderer_class: "बोलीदाता श्रेणी",
+  published: "प्रकाशित", doc_start: "दस्तावेज़ डाउनलोड आरंभ", doc_end: "दस्तावेज़ डाउनलोड समाप्त",
+  clarification_end: "स्पष्टीकरण समाप्त", prebid_date: "प्री-बिड बैठक", prebid_place: "प्री-बिड स्थान",
+  bid_start: "बोली जमा आरंभ", bid_end: "बोली जमा समाप्त", bid_opening: "बोली खुलना", bid_opening_place: "बोली खुलने का स्थान",
+  nit_documents: "एनआईटी दस्तावेज़", work_documents: "टेंडर दस्तावेज़", authority_name: "टेंडर आमंत्रित करने वाला अधिकारी",
+  authority_address: "अधिकारी का पता",
+};
 
 const LABELS = {
   ref_no: "Reference no.", tender_type: "Tender type", form_of_contract: "Form of contract",
@@ -20,13 +105,13 @@ const LABELS = {
 };
 const MONEY = new Set(["tender_value", "emd", "tender_fee", "processing_fee"]);
 const DATES = new Set(["published", "doc_start", "doc_end", "clarification_end", "prebid_date", "bid_start", "bid_end", "bid_opening"]);
-const DECISION_TEXT = { worth_reading: "Worth reading", maybe: "Maybe", skip: "Skip" };
+const decisionText = (d) => (d ? T(d) : "");
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function inr(n) {
-  if (n == null) return "Not disclosed";
+  if (n == null) return T("not_disclosed");
   if (n >= 1e7) return "₹" + (n / 1e7).toFixed(2).replace(/\.00$/, "") + " Cr";
   if (n >= 1e5) return "₹" + (n / 1e5).toFixed(2).replace(/\.00$/, "") + " L";
   return "₹" + Math.round(n).toLocaleString("en-IN");
@@ -91,40 +176,81 @@ function card(t) {
   const a = t.analysis || {};
   const dl = daysLeft(t);
   const badges = [];
-  if (a.decision) badges.push(`<span class="badge ${a.decision}">${DECISION_TEXT[a.decision] || a.decision}${a.relevance != null ? " · " + a.relevance : ""}</span>`);
-  if (isNew(t)) badges.push(`<span class="badge new">NEW</span>`);
-  if (isUpdated(t)) badges.push(`<span class="badge upd">UPDATED</span>`);
-  if (t.status === "active" && dl != null && dl <= 3) badges.push(`<span class="badge urgent">${dl < 1 ? "Closes today" : "Closes in " + Math.ceil(dl) + " days"}</span>`);
+  if (a.decision) badges.push(`<span class="badge ${a.decision}">${decisionText(a.decision)}${a.relevance != null ? " · " + a.relevance : ""}</span>`);
+  if (isNew(t)) badges.push(`<span class="badge new">${T("badge_new")}</span>`);
+  if (isUpdated(t)) badges.push(`<span class="badge upd">${T("badge_upd")}</span>`);
+  if (t.status === "active" && dl != null && dl <= 3) badges.push(`<span class="badge urgent">${dl < 1 ? T("closes_today") : T("closes_in", { n: Math.ceil(dl) })}</span>`);
   if (t.status !== "active") badges.push(`<span class="badge">${esc(t.status)}</span>`);
   if (a.sector) badges.push(`<span class="badge">${esc(a.sector)}</span>`);
   if (a.work_type) badges.push(`<span class="badge">${esc(a.work_type)}</span>`);
   (a.risk_flags || []).slice(0, 3).forEach((f) => badges.push(`<span class="badge flag">${esc(f)}</span>`));
-  if (a.source === "rules") badges.push(`<span class="badge rules" title="AI analysis pending; keyword rules used">rule-based</span>`);
+  if (a.source === "rules") badges.push(`<span class="badge rules" title="${T("rule_based_tip")}">${T("rule_based")}</span>`);
   return `<article class="card" data-id="${esc(t.id)}">
     <div class="badges">${badges.join("")}</div>
     <h3>${esc(t.title)}</h3>
     <div class="meta">
       <span>${esc(t.org)}</span><span>${esc(t.id)}</span>
-      ${hasDetail(t) ? `<span>Value: <span class="money">${inr(t.value)}</span></span><span>EMD: ${inr(t.emd)}</span>` : `<span>Value/EMD: details pending</span>`}
-      <span>Closes: <b>${fmtDate(t.closing)}</b></span>
+      ${hasDetail(t) ? `<span>${T("value")}: <span class="money">${inr(t.value)}</span></span><span>${T("emd")}: ${inr(t.emd)}</span>` : `<span>${T("details_pending")}</span>`}
+      <span>${T("closes")}: <b>${fmtDate(t.closing)}</b></span>
       ${t.location ? `<span>📍 ${esc(t.location)}</span>` : ""}
     </div>
-    ${a.summary && a.source === "llm" ? `<p class="summary">${esc(a.summary)}</p>` : ""}
+    ${a.summary && a.source === "llm" ? `<p class="summary">${esc(pickLang(a.summary, a.summary_hi))}</p>` : ""}
   </article>`;
+}
+
+function renderBriefing() {
+  const b = state.data.briefing;
+  const box = $("briefing");
+  if (!b) { box.hidden = true; return; }
+  const L = (o, key) => pickLang(o[key + "_en"], o[key + "_hi"]);
+  const list = (items) => (items?.length ? `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "");
+  const picks = (b.picks || []).map((p) => `
+    <article class="pick">
+      <div class="rank">${p.rank}</div>
+      <div class="pick-body">
+        <h3><a href="?id=${encodeURIComponent(p.tender_id)}" data-id="${esc(p.tender_id)}">${esc(p.title)}</a>
+          ${p.is_new ? `<span class="badge new">${T("badge_new")}</span>` : ""}</h3>
+        <div class="meta">
+          <span>${esc(p.authority || "")}</span><span>${esc(p.tender_id)}</span>
+          ${p.location ? `<span>📍 ${esc(p.location)}</span>` : ""}
+          <span>${T("value")}: <b>${inr(p.value)}</b></span>
+          <span>${T("b_cash")}: <b>${p.cash_to_bid != null ? "₹" + Number(p.cash_to_bid).toLocaleString("en-IN") : "-"}</b></span>
+          <span>${T("b_deadline")}: <b>${fmtDate(p.closing)}</b>${p.days_left != null ? ` (${T("b_days", { n: Math.floor(p.days_left) })})` : ""}</span>
+        </div>
+        ${L(p, "why") ? `<p><b>${T("b_why")}:</b> ${esc(L(p, "why"))}</p>` : ""}
+        ${(state.lang === "hi" && p.risks_hi?.length ? p.risks_hi : p.risks_en)?.length ? `<b>${T("b_risks")}</b>${list(state.lang === "hi" && p.risks_hi?.length ? p.risks_hi : p.risks_en)}` : ""}
+        ${L(p, "next_step") ? `<p class="next"><b>${T("b_next")}:</b> ${esc(L(p, "next_step"))}</p>` : ""}
+      </div>
+    </article>`).join("");
+  const advice = state.lang === "hi" && b.advice_hi?.length ? b.advice_hi : b.advice_en;
+  box.innerHTML = `
+    <h2>${T("b_title")}</h2>
+    ${L(b, "headline") ? `<p class="headline">${esc(L(b, "headline"))}</p>` : ""}
+    ${picks || `<p>${T("b_none")}</p>`}
+    ${advice?.length ? `<div class="box"><h4>${T("b_tips")}</h4>${list(advice)}</div>` : ""}
+    <p class="meta">${b.source === "llm" ? T("b_by_ai", { m: esc(b.model || "") }) : T("b_template")} · ${T("b_of", { n: b.candidates ?? 0 })} · ${fmtDate(b.generated_at)}</p>`;
+  box.hidden = false;
+}
+
+function applyLang() {
+  document.documentElement.lang = state.lang;
+  document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = T(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach((el) => { el.placeholder = T(el.dataset.i18nPh); });
+  $("lang").textContent = T("lang_toggle");
 }
 
 function render() {
   const all = state.data.tenders;
   document.querySelectorAll("#tabs button").forEach((b) => {
     const n = all.filter((t) => inTab(t, b.dataset.tab)).length;
-    b.innerHTML = b.textContent.replace(/\s*\d+$/, "") + ` <span class="n">${n}</span>`;
+    b.innerHTML = esc(T(b.dataset.i18n)) + ` <span class="n">${n}</span>`;
     b.classList.toggle("active", b.dataset.tab === state.tab);
   });
   const list = sorted(all.filter((t) => inTab(t, state.tab) && matchesFilters(t)));
-  $("count").textContent = `${list.length} tender${list.length === 1 ? "" : "s"}`;
+  $("count").textContent = list.length === 1 ? T("tender") : T("tenders", { n: list.length });
   $("list").innerHTML = list.length
     ? list.slice(0, state.shown).map(card).join("")
-    : `<div class="empty">No tenders here${state.tab === "new" ? " today — nothing new was published since the last run" : ""}.</div>`;
+    : `<div class="empty">${T("empty")}${state.tab === "new" ? T("empty_new") : ""}.</div>`;
   $("more").hidden = list.length <= state.shown;
 }
 
@@ -134,44 +260,49 @@ function showDetail(id) {
   const a = t.analysis || {};
   const rows = Object.entries(t.detail || {}).map(([k, v]) => {
     let val = Array.isArray(v) ? v.join(", ") : MONEY.has(k) ? inr(v) : DATES.has(k) ? fmtDate(v) : v;
-    return `<tr><td>${esc(LABELS[k] || k)}</td><td>${esc(val)}</td></tr>`;
+    const label = (state.lang === "hi" && LABELS_HI[k]) || LABELS[k] || k;
+    return `<tr><td>${esc(label)}</td><td>${esc(val)}</td></tr>`;
   }).join("");
   const list = (items) => (items?.length ? `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "");
-  const changes = (t.changes || []).map((c) => `<li>${fmtDate(c.date)}: ${esc(c.fields.join(", ") || "details changed")}</li>`).join("");
+  const changes = (t.changes || []).map((c) => `<li>${fmtDate(c.date)}: ${esc(c.fields.join(", ") || T("details_changed"))}</li>`).join("");
+  const blockers = state.lang === "hi" && a.blockers_hi?.length ? a.blockers_hi : a.blockers;
+  const translate = `https://translate.google.com/?sl=en&tl=hi&op=translate&text=${encodeURIComponent(t.title || "")}`;
+  $("dlg-body").dataset.id = id;
   $("dlg-body").innerHTML = `
-    <button class="close" onclick="document.getElementById('dlg').close()">Close</button>
-    <div class="badges">${a.decision ? `<span class="badge ${a.decision}">${DECISION_TEXT[a.decision]} · relevance ${a.relevance ?? "-"}</span>` : ""}
+    <button class="close" onclick="document.getElementById('dlg').close()">${T("close")}</button>
+    <div class="badges">${a.decision ? `<span class="badge ${a.decision}">${decisionText(a.decision)} · ${a.relevance ?? "-"}</span>` : ""}
       ${a.sector ? `<span class="badge">${esc(a.sector)}</span>` : ""}${a.work_type ? `<span class="badge">${esc(a.work_type)}</span>` : ""}</div>
     <h2>${esc(t.title)}</h2>
+    ${state.lang === "hi" ? `<p class="meta"><a href="${translate}" target="_blank" rel="noopener">${T("translate_title")}</a></p>` : ""}
     <div class="meta"><span>${esc(t.org_chain)}</span></div>
     <div class="actions">
-      <a href="${esc(state.data.portal.url)}" target="_blank" rel="noopener">Open portal</a>
-      <button class="secondary" onclick="navigator.clipboard.writeText('${esc(t.id)}');this.textContent='Copied ${esc(t.id)}'">Copy Tender ID</button>
-      <button class="secondary" onclick="navigator.clipboard.writeText(location.origin+location.pathname+'?id=${esc(t.id)}');this.textContent='Link copied'">Copy link</button>
+      <a href="${esc(state.data.portal.url)}" target="_blank" rel="noopener">${T("open_portal")}</a>
+      <button class="secondary" onclick="navigator.clipboard.writeText('${esc(t.id)}');this.textContent='${T("copied")} ${esc(t.id)}'">${T("copy_id")}</button>
+      <button class="secondary" onclick="navigator.clipboard.writeText(location.origin+location.pathname+'?id=${esc(t.id)}');this.textContent='${T("link_copied")}'">${T("copy_link")}</button>
     </div>
     <div class="box">
-      <h4>${a.source === "llm" ? "AI analysis" : "Rule-based analysis (AI analysis pending)"}</h4>
-      ${a.summary ? `<p>${esc(a.summary)}</p>` : ""}
-      ${a.reason ? `<p><b>Why:</b> ${esc(a.reason)}</p>` : ""}
-      ${a.upfront_cost_inr != null ? `<p><b>Cash to bid (startup/MSE, excl. stock):</b> ₹${Number(a.upfront_cost_inr).toLocaleString("en-IN")}</p>` : ""}
-      ${a.blockers?.length ? `<b>Blockers</b>${list(a.blockers)}` : ""}
-      ${a.key_requirements?.length ? `<b>Key requirements</b>${list(a.key_requirements)}` : ""}
-      ${a.risk_flags?.length ? `<b>Risk flags</b>${list(a.risk_flags)}` : ""}
-      ${a.model ? `<p class="meta">Model: ${esc(a.model)} · ${fmtDate(a.analysed_at)}${a.basis === "listing" ? " · based on listing only" : ""}</p>` : ""}
+      <h4>${a.source === "llm" ? T("ai_analysis") : T("rule_analysis")}</h4>
+      ${a.summary ? `<p>${esc(pickLang(a.summary, a.summary_hi))}</p>` : ""}
+      ${a.reason ? `<p><b>${T("why")}:</b> ${esc(pickLang(a.reason, a.reason_hi))}</p>` : ""}
+      ${a.upfront_cost_inr != null ? `<p><b>${T("cash_to_bid")}:</b> ₹${Number(a.upfront_cost_inr).toLocaleString("en-IN")}</p>` : ""}
+      ${blockers?.length ? `<b>${T("blockers")}</b>${list(blockers)}` : ""}
+      ${a.key_requirements?.length ? `<b>${T("key_req")}</b>${list(a.key_requirements)}` : ""}
+      ${a.risk_flags?.length ? `<b>${T("risk_flags")}</b>${list(a.risk_flags)}` : ""}
+      ${a.model ? `<p class="meta">${T("model")}: ${esc(a.model)} · ${fmtDate(a.analysed_at)}${a.basis === "listing" ? " · " + T("listing_only") : ""}</p>` : ""}
     </div>
-    ${hasDetail(t) ? "" : `<p class="warn">Full tender details (value, EMD, eligibility) could not be fetched yet; the crawler retries on the next run.</p>`}
+    ${hasDetail(t) ? "" : `<p class="warn">${T("no_detail")}</p>`}
     <table class="kv">
-      <tr><td>Tender ID</td><td>${esc(t.id)}</td></tr>
-      ${t.ref_no ? `<tr><td>Reference no.</td><td>${esc(t.ref_no)}</td></tr>` : ""}
-      <tr><td>Bid submission closes</td><td><b>${fmtDate(t.closing)}</b></td></tr>
-      <tr><td>Bid opening</td><td>${fmtDate(t.opening)}</td></tr>
-      <tr><td>First seen by crawler</td><td>${fmtDate(t.first_seen)}</td></tr>
-      ${t.related?.length ? `<tr><td>Other lots under the same tender number</td><td>${esc(t.related.join(", "))}</td></tr>` : ""}
+      <tr><td>${T("tender_id")}</td><td>${esc(t.id)}</td></tr>
+      ${t.ref_no ? `<tr><td>${T("ref_no")}</td><td>${esc(t.ref_no)}</td></tr>` : ""}
+      <tr><td>${T("bid_closes")}</td><td><b>${fmtDate(t.closing)}</b></td></tr>
+      <tr><td>${T("bid_opening")}</td><td>${fmtDate(t.opening)}</td></tr>
+      <tr><td>${T("first_seen")}</td><td>${fmtDate(t.first_seen)}</td></tr>
+      ${t.related?.length ? `<tr><td>${T("other_lots")}</td><td>${esc(t.related.join(", "))}</td></tr>` : ""}
       ${rows}
     </table>
-    ${changes ? `<div class="box"><h4>Changes detected (corrigendum)</h4><ul>${changes}</ul></div>` : ""}
-    <p class="meta">To open this tender: Open portal → Search → paste the Tender ID. Documents (PDF/BOQ) are downloaded on the portal.</p>`;
-  $("dlg").showModal();
+    ${changes ? `<div class="box"><h4>${T("changes")}</h4><ul>${changes}</ul></div>` : ""}
+    <p class="meta">${T("howto")}</p>`;
+  if (!$("dlg").open) $("dlg").showModal();
 }
 
 function fillSelect(id, values) {
@@ -179,7 +310,33 @@ function fillSelect(id, values) {
   [...new Set(values.filter(Boolean))].sort().forEach((v) => sel.insertAdjacentHTML("beforeend", `<option>${esc(v)}</option>`));
 }
 
+function renderHeader() {
+  const d = state.data;
+  const run = d.run || {};
+  const an = run.analysis || {};
+  $("runinfo").textContent = an.llm_pending ? T("llm_pending", { n: an.llm_pending }) : "";
+  const active = d.tenders.filter((t) => t.status === "active");
+  const stat = (n, label) => `<div class="stat"><b>${n}</b><span>${label}</span></div>`;
+  $("stats").innerHTML = [
+    stat(active.length, T("st_active")),
+    stat(active.filter(isNew).length, T("st_new")),
+    stat(active.filter((t) => t.analysis?.decision === "worth_reading").length, T("st_worth")),
+    stat(active.filter((t) => { const x = daysLeft(t); return x != null && x >= 0 && x <= 3; }).length, T("st_closing")),
+    stat(inr(active.reduce((s, t) => s + (t.value || 0), 0)), T("st_value")),
+  ].join("") + (run.status && run.status !== "ok" ? `<div class="warn">${T("last_run_problem", { e: esc(run.error || run.status) })}</div>` : "");
+}
+
+function renderAll() {
+  applyLang();
+  renderHeader();
+  renderBriefing();
+  render();
+  const open = $("dlg").open && $("dlg-body").dataset.id;
+  if (open) showDetail(open);
+}
+
 async function init() {
+  applyLang();
   const res = await fetch("data.json", { cache: "no-store" });
   state.data = await res.json();
   const d = state.data;
@@ -189,23 +346,20 @@ async function init() {
   $("updated").textContent = fmtDate(d.generated_at) + " IST";
   $("portal").textContent = d.portal.name;
   $("portal").href = d.portal.url;
-  const run = d.run || {};
-  const an = run.analysis || {};
-  $("runinfo").textContent = an.llm_pending ? `AI analysis pending for ${an.llm_pending} tenders (free-tier limit; continues next run)` : "";
-
   const active = d.tenders.filter((t) => t.status === "active");
-  const stat = (n, label) => `<div class="stat"><b>${n}</b><span>${label}</span></div>`;
-  $("stats").innerHTML = [
-    stat(active.length, "Active tenders"),
-    stat(active.filter(isNew).length, "New today"),
-    stat(active.filter((t) => t.analysis?.decision === "worth_reading").length, "Worth reading"),
-    stat(active.filter((t) => { const x = daysLeft(t); return x != null && x >= 0 && x <= 3; }).length, "Closing in 3 days"),
-    stat(inr(active.reduce((s, t) => s + (t.value || 0), 0)), "Total disclosed value"),
-  ].join("") + (run.status && run.status !== "ok" ? `<div class="warn">Last run problem: ${esc(run.error || run.status)} — showing previous data.</div>` : "");
 
   fillSelect("f-org", d.tenders.map((t) => t.org));
   fillSelect("f-sector", d.tenders.map((t) => t.analysis?.sector));
   if (!active.some(isNew)) state.tab = "worth";
+  $("lang").addEventListener("click", () => {
+    state.lang = state.lang === "hi" ? "en" : "hi";
+    localStorage.setItem("lang", state.lang);
+    renderAll();
+  });
+  $("briefing").addEventListener("click", (e) => {
+    const a = e.target.closest("a[data-id]");
+    if (a) { e.preventDefault(); showDetail(a.dataset.id); }
+  });
 
   $("tabs").addEventListener("click", (e) => {
     const b = e.target.closest("button");
@@ -216,9 +370,9 @@ async function init() {
     $(id).addEventListener("input", () => { state.shown = PAGE; render(); }));
   $("more").addEventListener("click", () => { state.shown += PAGE; render(); });
   $("list").addEventListener("click", (e) => { const c = e.target.closest(".card"); if (c) showDetail(c.dataset.id); });
-  render();
+  renderAll();
   const linked = new URLSearchParams(location.search).get("id");
   if (linked) showDetail(linked);
 }
 
-init().catch((err) => { $("list").innerHTML = `<div class="empty">Could not load data: ${esc(err.message)}</div>`; });
+init().catch((err) => { $("list").innerHTML = `<div class="empty">${T("load_error", { e: esc(err.message) })}</div>`; });

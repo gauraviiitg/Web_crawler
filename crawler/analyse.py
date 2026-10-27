@@ -27,7 +27,10 @@ SECTORS = [
 ]
 WORK_TYPES = ["Construction", "Supply", "Service", "Maintenance", "Consultancy", "Rate Contract", "Other"]
 DECISIONS = ["worth_reading", "maybe", "skip"]
-GENERIC_WORDS = {"works", "work", "services", "service", "supply", "hardware", "equipment", "and"}
+# Bump when the prompt or profile logic changes so stored LLM analyses are redone.
+PROMPT_VERSION = "newco-2"
+GENERIC_WORDS = {"works", "work", "services", "service", "supply", "hardware", "equipment", "and",
+                 "goods", "items", "material", "supplies", "miscellaneous"}
 
 SECTOR_KEYWORDS = {
     "Roads & Bridges": ["road", "bridge", "highway", "culvert", "bt ", "patch repair", "mdr", "odr", "pavement"],
@@ -73,11 +76,13 @@ Answer ONLY with JSON:
 {"results": [{
   "tender_id": "<copy exactly>",
   "summary": "<plain-English summary, max 35 words: what, where, for whom>",
+  "summary_hi": "<the same summary in simple Hindi (Devanagari)>",
   "sector": "<one of SECTORS>",
   "work_type": "<one of WORK_TYPES>",
   "decision": "worth_reading | maybe | skip",
   "relevance": <integer 0-100: how good a first tender this is for the reader>,
   "reason": "<max 30 words: why this decision, citing the deciding rule>",
+  "reason_hi": "<the same reason in simple Hindi (Devanagari)>",
   "upfront_cost_inr": <integer estimate of cash needed to submit the bid as an iStart startup / Udyam MSE (fees + any EMD), excluding stock>,
   "blockers": ["<max 3 things the reader probably lacks, e.g. 'contractor class C registration', 'drug licence', 'OEM authorisation', 'past supply orders'>"],
   "risk_flags": ["<short flags e.g. 'closes in 2 days', 'high EMD', 'value not disclosed', 'vague scope', 'stock funding needed', 'one lot of many'>"],
@@ -177,8 +182,8 @@ def upfront_cost(d: dict, startup: bool = True) -> float:
     return round(fee + (d.get("processing_fee") or 0) + emd)
 
 
-def feasibility_blockers(record: dict, profile: dict, now: datetime) -> list[str]:
-    """Hard reasons a new, zero-experience company cannot bid (empty list = feasible)."""
+def feasibility_blockers(record: dict, profile: dict, now: datetime) -> list[tuple[str, str]]:
+    """Hard reasons a new, zero-experience company cannot bid, as (English, Hindi) pairs."""
     d = record.get("detail") or {}
     if profile.get("experience_years", 1) > 0:
         return []
@@ -188,21 +193,24 @@ def feasibility_blockers(record: dict, profile: dict, now: datetime) -> list[str
     text = " ".join(str(x) for x in (record.get("title"), d.get("description"), d.get("product_category"),
                                      d.get("sub_category")) if x)
     if category == "works" or WORKS_RE.search(text):
-        blockers.append("works / labour contract (needs contractor registration or fleet)")
+        blockers.append(("works / labour contract (needs contractor registration or fleet)",
+                         "निर्माण / श्रम कार्य (ठेकेदार पंजीकरण या वाहन चाहिए)"))
     if tclass not in ("ALL", ""):
-        blockers.append(f"needs {d.get('tenderer_class')} registration")
+        blockers.append((f"needs {d.get('tenderer_class')} registration",
+                         f"{d.get('tenderer_class')} पंजीकरण आवश्यक"))
     value = d.get("tender_value") or 0
     if value > 1e7:
-        blockers.append("above Rs 1 crore (no startup relaxation)")
+        blockers.append(("above Rs 1 crore (no startup relaxation)", "₹1 करोड़ से अधिक (स्टार्टअप छूट नहीं)"))
     elif profile.get("max_value_inr") and value > 2 * profile["max_value_inr"]:
-        blockers.append("too large for a first order (stock funding)")
+        blockers.append(("too large for a first order (stock funding)", "पहले ऑर्डर के लिए बहुत बड़ा (माल हेतु पूंजी)"))
     if LICENSED_RE.search(text):
-        blockers.append("licence / OEM authorisation likely needed")
+        blockers.append(("licence / OEM authorisation likely needed", "लाइसेंस / निर्माता अधिकार-पत्र संभवतः आवश्यक"))
     if d and upfront_cost(d) > profile.get("max_upfront_inr", float("inf")):
-        blockers.append(f"about Rs {upfront_cost(d):,} cash needed to bid")
+        blockers.append((f"about Rs {upfront_cost(d):,} cash needed to bid",
+                         f"बोली के लिए लगभग ₹{upfront_cost(d):,} नकद चाहिए"))
     days = _days_left(record.get("closing"), now)
     if days is not None and days < profile.get("min_days_left", 0):
-        blockers.append(f"only {max(days, 0):.0f} days left")
+        blockers.append((f"only {max(days, 0):.0f} days left", f"केवल {max(days, 0):.0f} दिन शेष"))
     return blockers
 
 
@@ -217,7 +225,11 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
     sector = max(scores, key=scores.get) if max(scores.values()) else "Other"
     category = (d.get("tender_category") or "").lower()
     work_type = {"goods": "Supply", "services": "Service", "works": "Construction"}.get(category, "Other")
-    if "rate contract" in text:
+    try:
+        period = int(d.get("period_of_work_days") or 0)
+    except ValueError:
+        period = 0
+    if "rate contract" in text or (category == "goods" and period >= 300):
         work_type = "Rate Contract"
     elif "maintenance" in text or "repair" in text:
         work_type = "Maintenance"
@@ -255,15 +267,20 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
                      - (15 if max_value and (d.get("tender_value") or 0) > max_value else 0))
         relevance = max(0, min(100, relevance))
     decision = "worth_reading" if relevance >= 70 else "maybe" if relevance >= 45 else "skip"
+    base = profile.get("base_location", "")
     if blockers:
-        reason = "Not feasible yet: " + "; ".join(blockers)
+        reason = "Not feasible yet: " + "; ".join(en for en, _ in blockers)
+        reason_hi = "अभी संभव नहीं: " + "; ".join(hi for _, hi in blockers)
     else:
-        reason = ", ".join(filter(None, [
-            "in " + profile.get("base_location", "") if loc_hit else "",
-            "matches " + ", ".join(hits) if hits else "",
-            "rate contract" if work_type == "Rate Contract" else "",
-            f"upfront about Rs {cost:,}" if cost is not None else "",
-        ])) or "goods/services open to all bidders"
+        parts = [
+            ("in " + base, base + " में") if loc_hit else None,
+            ("matches " + ", ".join(hits), "रुचि से मेल: " + ", ".join(hits)) if hits else None,
+            ("rate contract", "दर अनुबंध (रेट कॉन्ट्रैक्ट)") if work_type == "Rate Contract" else None,
+            (f"upfront about Rs {cost:,}", f"शुरुआती खर्च लगभग ₹{cost:,}") if cost is not None else None,
+        ]
+        parts = [p for p in parts if p]
+        reason = ", ".join(en for en, _ in parts) or "goods/services open to all bidders"
+        reason_hi = ", ".join(hi for _, hi in parts) or "सभी बोलीदाताओं के लिए खुली सामग्री/सेवा"
     title = record.get("title") or d.get("title") or ""
     return {
         "summary": title[:200],
@@ -272,8 +289,10 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
         "decision": decision,
         "relevance": relevance,
         "reason": reason[:300],
+        "reason_hi": reason_hi[:300],
         "upfront_cost_inr": cost,
-        "blockers": blockers[:3],
+        "blockers": [en for en, _ in blockers][:3],
+        "blockers_hi": [hi for _, hi in blockers][:3],
         "risk_flags": flags,
         "key_requirements": [],
         "tags": hits[:5],
@@ -387,17 +406,20 @@ def _validate(item: dict, now: datetime, model: str, full_details: bool = True) 
 
     return {
         "summary": str(item.get("summary", ""))[:400],
+        "summary_hi": str(item.get("summary_hi", ""))[:400],
         "sector": sector,
         "work_type": work_type,
         "decision": decision if decision in DECISIONS else "maybe",
         "relevance": relevance,
         "reason": str(item.get("reason", ""))[:300],
+        "reason_hi": str(item.get("reason_hi", ""))[:300],
         "upfront_cost_inr": cost,
         "blockers": str_list(item.get("blockers"), 3),
         "risk_flags": str_list(item.get("risk_flags"), 6),
         "key_requirements": str_list(item.get("key_requirements"), 3),
         "tags": str_list(item.get("tags"), 5),
         "source": "llm",
+        "prompt_version": PROMPT_VERSION,
         "basis": "full" if full_details else "listing",
         "model": model,
         "analysed_at": now.strftime("%Y-%m-%dT%H:%M"),
@@ -414,21 +436,14 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
             family_sizes[r.get("family")] = family_sizes.get(r.get("family"), 0) + 1
     for r in tenders.values():
         r["lots_in_group"] = family_sizes.get(r.get("family"), 1) - 1 or None
-    pending = [
-        r for r in tenders.values()
-        if r.get("status") == "active" and (r.get("analysis") or {}).get("source") != "llm"
-    ]
+    pending = [r for r in tenders.values() if r.get("status") == "active" and not _llm_current(r)]
     pending.sort(key=lambda r: (r.get("first_seen", ""), r.get("closing") or ""), reverse=True)
 
     for record in pending:
         record["analysis"] = rule_analysis(record, profile, now)
         stats["rules"] += 1
 
-    clients = [
-        LLMClient(p, os.environ[p["api_key_env"]])
-        for p in cfg["llm"]["providers"]
-        if os.environ.get(p["api_key_env"])
-    ]
+    clients = llm_clients(cfg)
     if not clients:
         names = ", ".join(p["api_key_env"] for p in cfg["llm"]["providers"])
         stats["llm_error"] = f"no LLM API key set ({names}) - rule-based analysis only"
@@ -476,8 +491,15 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
                 stats["llm"] += 1
                 stats["models"][label] = stats["models"].get(label, 0) + 1
         stats["model"] = label
-    stats["llm_pending"] = sum(
-        1 for r in tenders.values()
-        if r.get("status") == "active" and (r.get("analysis") or {}).get("source") != "llm"
-    )
+    stats["llm_pending"] = sum(1 for r in tenders.values() if r.get("status") == "active" and not _llm_current(r))
     return stats
+
+
+def _llm_current(record: dict) -> bool:
+    a = record.get("analysis") or {}
+    return a.get("source") == "llm" and a.get("prompt_version") == PROMPT_VERSION
+
+
+def llm_clients(cfg: dict) -> list[LLMClient]:
+    return [LLMClient(p, os.environ[p["api_key_env"]]) for p in cfg["llm"]["providers"]
+            if os.environ.get(p["api_key_env"])]

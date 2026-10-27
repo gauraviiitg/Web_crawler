@@ -57,4 +57,18 @@ table.kv td:first-child { color: var(--muted); width: 34%; }
 .actions a, .actions button { padding: 8px 14px; border-radius: 8px; border: 1px solid var(--brand); background: var(--brand); color: #fff; text-decoration: none; cursor: pointer; font: inherit; }
 .actions button.secondary { background: #fff; color: var(--brand); }
 footer { color: var(--muted); font-size: 12px; padding: 24px 16px 40px; }
+.lang { float: right; border: 1px solid rgba(255,255,255,.6); background: rgba(255,255,255,.15); color: #fff; border-radius: 999px; padding: 6px 14px; cursor: pointer; font: inherit; font-weight: 600; }
+.lang:hover { background: rgba(255,255,255,.28); }
+.briefing { background: var(--card); border: 2px solid #f5d9b0; border-radius: 14px; padding: 16px 18px; margin-top: 18px; }
+.briefing h2 { margin: 0 0 4px; font-size: 20px; color: #7c2d12; }
+.briefing .headline { margin: 0 0 10px; font-weight: 600; }
+.pick { display: flex; gap: 12px; border-top: 1px solid var(--line); padding: 12px 0; }
+.pick .rank { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 700; }
+.pick-body { min-width: 0; }
+.pick h3 { margin: 2px 0 4px; font-size: 16px; }
+.pick h3 a { color: var(--ink); text-decoration: none; }
+.pick h3 a:hover { color: var(--brand); text-decoration: underline; }
+.pick p { margin: 6px 0; }
+.pick ul { margin: 4px 0 0 18px; padding: 0; }
+.pick .next { color: var(--good); }
 .empty { text-align: center; color: var(--muted); padding: 40px; background: #fff; border-radius: 12px; border: 1px dashed var(--line); }

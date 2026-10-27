@@ -17,6 +17,7 @@ from pathlib import Path
 import yaml
 
 from .analyse import analyse_tenders
+from .briefing import build_briefing
 from .gepnic import GepnicClient, SessionExpired
 from .report import build_site
 from .store import Store
@@ -112,12 +113,14 @@ def main() -> int:
     if args.no_llm:
         cfg["llm"]["providers"] = []
     run["analysis"] = analyse_tenders(store.tenders, cfg, now)
+    briefing = build_briefing(store.tenders, cfg, now)
+    run["briefing"] = {"source": briefing["source"], "picks": len(briefing["picks"])}
     run["pruned"] = store.prune(now, cfg["site"].get("prune_closed_days", 60))
     run["active"] = sum(1 for r in store.tenders.values() if r.get("status") == "active")
     run["duration_seconds"] = round(time.time() - started)
     store.add_run(run)
     store.save()
-    build_site(store, cfg, run, now, ROOT)
+    build_site(store, cfg, run, now, ROOT, briefing)
     log.info("run summary: %s", run)
     return 0 if run["status"] == "ok" else 1
 

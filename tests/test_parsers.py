@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from crawler.analyse import _validate, parse_llm_json, rule_analysis
+from crawler.briefing import build_briefing
 from crawler.gepnic import (
     TENDER_ID_RE, ListingRow, SessionExpired, parse_amount, parse_date, parse_detail,
     parse_org_list, parse_org_tenders,
@@ -136,3 +137,24 @@ def test_new_company_feasibility():
 
     drugs = dict(stationery, title="Supply of drugs and medicines")
     assert rule_analysis(drugs, profile, now)["decision"] == "skip"
+    assert rule_analysis(works, profile, now)["reason_hi"].startswith("अभी संभव नहीं")
+
+
+def test_briefing_template_without_llm():
+    now = datetime(2026, 10, 27, 9)
+    cfg = {"profile": {"experience_years": 0, "min_days_left": 5, "interests": ["stationery"],
+                       "locations": ["Jaipur"], "base_location": "Jaipur"},
+           "llm": {"providers": []}, "briefing": {"top_picks": 2}}
+    detail = {"tender_category": "Goods", "tenderer_class": "ALL", "tender_value": 1800000, "emd": 36000,
+              "emd_exemption": "Yes", "tender_fee": 590, "processing_fee": 500, "location": "Jaipur",
+              "payment_mode": "Offline"}
+    tenders = {}
+    for i, title in enumerate(["Rate contract for stationery", "Supply of canvas bags", "Construction of road"]):
+        rec = {"tender_id": f"2026_X_{i}_1", "title": title, "status": "active", "closing": "2026-11-02T13:00",
+               "first_seen": "2026-10-27T09:00", "detail": detail}
+        rec["analysis"] = rule_analysis(rec, cfg["profile"], now)
+        tenders[rec["tender_id"]] = rec
+    b = build_briefing(tenders, cfg, now)
+    assert b["source"] == "template" and b["candidates"] == 2
+    assert [p["tender_id"] for p in b["picks"]] == ["2026_X_0_1", "2026_X_1_1"]
+    assert b["picks"][0]["is_new"] and b["headline_hi"] and b["picks"][1]["risks_hi"]
