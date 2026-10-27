@@ -1,0 +1,50 @@
+# Portal to crawl (NIC GePNIC software). Other NIC state portals use the same layout.
+portal:
+  name: Rajasthan eProcurement
+  base_url: https://eproc.rajasthan.gov.in
+  home_url: https://eproc.rajasthan.gov.in/nicgep/app
+  request_delay_seconds: 0.5
+  timeout_seconds: 60
+  verify_tls: false
+
+# The LLM uses this profile to decide which tenders are worth reading.
+# Edit freely: describe what kind of tenders matter to you.
+profile:
+  description: >
+    A contractor / supplier in Rajasthan looking for tenders worth bidding on.
+    Prefer tenders with a clear scope, a reasonable bid window (at least 5 days left),
+    an open tender type, and a disclosed tender value. Flag very large works that need
+    special class registration, very short deadlines, and re-tenders.
+  interests:
+    - civil works
+    - roads
+    - buildings
+    - water supply and pipelines
+    - electrical works
+    - solar and power
+    - IT hardware and services
+    - medical equipment
+  locations:
+    - Jaipur
+    - Jodhpur
+    - Udaipur
+    - Kota
+    - Ajmer
+    - Bikaner
+  min_value_inr: 0
+  max_value_inr: 0   # 0 = no upper limit
+
+llm:
+  # GitHub Models (free tier) - authenticated with the workflow's GITHUB_TOKEN.
+  endpoint: https://models.github.ai/inference/chat/completions
+  models:
+    - openai/gpt-4o-mini
+    - openai/gpt-4.1-mini
+  batch_size: 8
+  max_requests_per_run: 120     # free tier allows ~150 requests/day for small models
+  seconds_between_requests: 5   # free tier allows ~15 requests/minute
+
+site:
+  title: Rajasthan Govt Tenders - Daily Report
+  keep_closed_days: 7    # show recently closed tenders on the site
+  prune_closed_days: 60  # drop closed tenders from the database after this many days

@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+site/
+data/*.tmp
+
+research/*.html
+research/*.png
+research/*.bin
+research/*.pkl
+research/dl_*
+research/cj.txt
+research/captcha_flow.py
+research/save_captcha.py

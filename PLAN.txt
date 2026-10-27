@@ -1,0 +1,298 @@
+=====================================================================
+ RAJASTHAN GOVT TENDER CRAWLER - RESEARCH FINDINGS AND BUILD PLAN
+ Researched: 27-Oct-2026 (live probes against the real site)
+ Target (phase 1): https://eproc.rajasthan.gov.in  (Rajasthan eProcurement, NIC GePNIC v1.09.24)
+=====================================================================
+
+DECISIONS (27-Oct-2026)
+-----------------------
+  - Documents: metadata only + flag "worth reading" tenders; PDFs downloaded manually
+    by a person on the portal (Part B option 2). No captcha solving.
+  - LLM: GitHub Models via the workflow GITHUB_TOKEN ("models: read") (Part D option a).
+  - Website: make gauraviiitg/Web_crawler public and serve GitHub Pages from it (Part F).
+  - LLM classifies every tender and decides worth_reading / maybe / skip.
+  - Report must be live by 09:00 IST; workflow starts 08:30 IST (cron "0 3 * * *").
+  - Changes go directly to main (no pull request), per owner's instruction.
+  - Status: built (crawler/, web/, .github/workflows/daily.yml).
+
+FINDING AFTER BUILD (27-Oct-2026 17:30 IST)
+  After about 400 requests of testing from one IP, the portal began answering every tender
+  detail page with "Your session in the client area has expired" while list pages kept
+  working. The crawler therefore stops requesting details after 5 consecutive failures,
+  analyses those tenders from listing data (title, ref no, org chain, dates) and retries
+  details on the next run.
+
+GOAL
+----
+Every morning at 09:00 IST, a GitHub Actions job:
+  1. crawls the Rajasthan eProcurement portal for active tenders,
+  2. finds tenders it has not seen before (de-duplication),
+  3. fetches full details for the new ones,
+  4. analyses them with an LLM (summary, category, value band, eligibility, risks, deadlines),
+  5. regenerates a static website (report) and publishes it on GitHub Pages.
+
+
+=====================================================================
+PART A - HOW THE SITE WORKS (VERIFIED, NOT ASSUMED)
+=====================================================================
+
+A1. Technology
+  - Java Apache Tapestry app hosted by NIC. Base URL: https://eproc.rajasthan.gov.in/nicgep/app
+  - Pages are addressed with ?page=<PageName>&service=page
+  - Clicks inside pages are "DirectLink" URLs like
+      /nicgep/app?component=%24DirectLink&page=X&service=direct&session=T&sp=<encrypted token>
+  - The "sp" tokens are bound to the server session (JSESSIONID cookie).
+    VERIFIED: a detail link copied into a fresh session does NOT work.
+    => The crawler must navigate list -> detail inside ONE requests.Session().
+    => The public report CANNOT deep-link to a tender page. It must show the Tender ID
+       and link to the portal home page (users search the Tender ID there).
+  - Plain HTML, no JavaScript needed to read content. requests + BeautifulSoup is enough.
+    No browser (Playwright/Selenium) required.
+  - robots.txt: returns 404 (no robots rules published).
+  - TLS: works with normal HTTPS; we use verify=False only because some NIC chains are
+    incomplete on certain machines. Try verify=True first in production.
+
+A2. Which pages need a CAPTCHA and which don't
+  NO captcha (usable by the crawler):
+    - FrontEndTendersByOrganisation  -> list of ALL organisations with active tender counts
+                                       (90 orgs, 2,149 tenders on 27-Oct-2026)
+    - <org DirectLink>               -> ALL active tenders for that org on ONE page
+                                       (VERIFIED: "PWD - CE AND AS" = 720 rows, no pagination)
+    - FrontEndViewTender (detail)    -> full tender details (all fields, see A4)
+    - FrontEndListTendersbyDate      -> tenders closing today / 7 / 14 days, paginated
+                                       (10 rows/page, $TablePages.linkFwd for next page)
+  CAPTCHA required (crawler must NOT use these):
+    - FrontEndLatestActiveTenders (the main "Active Tenders" search)
+    - FrontEndLatestActiveCorrigendums (corrigendum list)
+    - FrontEndTendersInArchive, WebTenderStatusLists, ResultOfTenders
+    - Any DOCUMENT DOWNLOAD (NIT PDF, tender document PDF, BOQ .xls, "Download as zip")
+      -> shows a "Document Download / Enter Captcha" form (6-char image captcha).
+
+A3. Crawl path (the one we will implement)
+  Step 1  GET /nicgep/app?page=FrontEndTendersByOrganisation&service=page
+          Parse rows of 3 <td>: S.No | Organisation Name | Tender Count, with an <a> DirectLink.
+  Step 2  For each org: GET its DirectLink (same session).
+          Each tender row has 6 cells:
+            S.No | e-Published Date | Bid Submission Closing Date | Tender Opening Date |
+            "[Title] [Ref No][TENDER_ID]" | Organisation Chain
+          The title cell holds an <a href="...page=FrontEndViewTender..."> link.
+          Tender ID regex:  \[(\d{4}_[A-Z0-9]+_\d+_\d+)\]
+          Example: 2026_AGRIC_603900_1
+  Step 3  De-dup: compare each Tender ID to the stored database (see Part C).
+  Step 4  For NEW (or CHANGED) tenders only: GET the FrontEndViewTender link (same session)
+          and parse the details.
+  Measured speed: org list ~0.8 s, org page ~0.8 s, detail page ~0.1 s.
+  Politeness: sleep 0.5-1 s between requests, 1 concurrent connection, real User-Agent.
+  Full first crawl of ~2,150 tenders = roughly 20-40 min. Daily runs (new only) = a few minutes.
+
+A4. Fields available on the detail page (all VERIFIED on a live tender)
+  Parse: every <td class="td_caption"> followed by a sibling <td class="td_field">.
+    Basic:     Organisation Chain, Tender Reference Number, Tender ID, Withdrawal Allowed,
+               Tender Type (Open Tender...), Form Of Contract (Item Rate...), Tender Category
+               (Goods/Works/Services), No. of Covers, Payment Mode, Two Stage Bidding
+    Covers:    cover number, type (Fee/PreQual/Technical, Finance), description, doc type
+    Fees:      Tender Fee in Rs, Processing Fee in Rs, Fee Payable To/At, Fee Exemption Allowed
+    EMD:       EMD Amount in Rs, EMD Exemption Allowed, EMD Fee Type, EMD Percentage,
+               EMD Payable To/At
+    Work item: Title, Work Description, NDA/Pre Qualification, Tender Value in Rs,
+               Product Category, Sub category, Contract Type, Bid Validity(Days),
+               Period Of Work(Days), Location, Pincode, Pre Bid Meeting Place/Address/Date,
+               Bid Opening Place, Tenderer Class
+    Dates:     Published Date, Bid Opening Date, Document Download Start/End,
+               Clarification Start/End, Bid Submission Start/End
+    Documents: NIT Document names + sizes, Work Item Documents (Tender docs, BOQ) names + sizes
+               (names/sizes are visible; the files themselves need a captcha)
+    Authority: Name, Address
+  Example (real): 2026_AGRIC_603900_1, Agriculture Deptt, Soil Testing Kits rate contract,
+    value Rs 15,00,000, EMD Rs 30,000 (2%), Chittorgarh 312001, closes 28-Oct-2026 11:00 AM.
+
+A5. Tender ID format
+  YYYY_ORGCODE_NUMBER_N   e.g. 2026_CEPWD_604884_4
+    - YYYY      = year
+    - ORGCODE   = org short code (CEPWD, AGRIC, MEDIC, RMSCL, PHCJO...)
+    - NUMBER    = unique tender number on the portal
+    - N         = re-tender / instance counter (_1 first issue, _2 re-issue...)
+  => Unique key = full Tender ID.
+  => "Retender family" key = YYYY_ORGCODE_NUMBER (lets the report say "re-tender of ...").
+
+A6. Reachability from GitHub Actions
+  - GitHub-hosted runners use US/EU (Azure) IPs. Many Indian govt sites geo-block foreign IPs.
+  - VERIFIED: an outside (non-Indian) fetch server loaded the org list page fine.
+  - Still: the first Actions run must confirm this. Fallback if blocked: a self-hosted
+    runner on an Indian machine/VPS, or an Indian HTTP proxy stored as a repo secret.
+
+A7. Other Rajasthan source (phase 2, not now)
+  - https://sppp.rajasthan.gov.in (State Public Procurement Portal, RTPP Act 2012) is an
+    Angular single-page app backed by a JSON API. Timed out from this local machine,
+    loaded from an outside server. Would need its API reverse-engineered separately.
+  - The same GePNIC crawler works almost unchanged for other NIC state portals and
+    https://eprocure.gov.in/eprocure/app (Central). Make the base URL configurable.
+
+
+=====================================================================
+PART B - DECISION NEEDED: CAPTCHA-PROTECTED DOCUMENTS
+=====================================================================
+  Tender PDFs/BOQ are behind an image captcha (6 chars, mixed case, light noise; easy for
+  OCR or an LLM to read). A test confirmed a correct answer is accepted and the page then
+  shows new download links. Automatically solving it is deliberately getting past a
+  human-verification control on a government site, so it is NOT included in this plan
+  by default.
+  Options:
+    1. (Recommended) Metadata only. The detail page already has value, EMD, dates, location,
+       category, description, eligibility note and document names. That is enough for a
+       good daily report and LLM analysis.
+    2. Human-in-the-loop: report lists tenders flagged "worth reading"; a person opens the
+       portal and downloads the PDFs manually.
+    3. Automated captcha solving (OCR/LLM). Only if you explicitly decide it is acceptable
+       for your use; check the portal's terms and the IT Act first. Not built unless asked.
+
+
+=====================================================================
+PART C - DE-DUPLICATION DESIGN
+=====================================================================
+  Storage: data/tenders.json (or data/tenders.sqlite) committed back to the repo by the
+  workflow, so state survives between runs. JSON is simplest and diff-friendly.
+
+  Record per tender:
+    tender_id (PRIMARY KEY), family_key, org, title, ref_no, published, closing, opening,
+    value_inr, emd_inr, category, location, pincode, ...all detail fields...,
+    content_hash, first_seen, last_seen, last_changed, status, analysis{...}
+
+  Daily algorithm:
+    listing = crawl all org pages -> {tender_id: (closing date, title, org, detail_link)}
+    for each tender_id in listing:
+      not in DB                 -> NEW: fetch detail, analyse, first_seen = today
+      in DB, list row changed   -> CHANGED (likely corrigendum: dates moved etc):
+                                   re-fetch detail, recompute content_hash; if hash differs,
+                                   mark "updated", keep a small change log, re-analyse
+      in DB, unchanged          -> just update last_seen (no detail fetch, no LLM call)
+    for each DB tender not in listing:
+      closing date passed       -> status = "closed"
+      closing date in future    -> status = "withdrawn/cancelled?" (flag for review)
+    same family_key, new suffix -> link as re-tender of the earlier instance
+
+  content_hash = sha256 of normalised key fields (dates, value, EMD, title, documents).
+  Guarantees: a tender is analysed by the LLM once (plus once per real change), and appears
+  in "New today" exactly once.
+
+
+=====================================================================
+PART D - LLM ANALYSIS
+=====================================================================
+  Input per tender: the parsed detail fields (no PDFs, see Part B).
+  Output (strict JSON):
+    summary_en (2-3 lines), summary_hi (optional), sector, work_type,
+    value_band (<10L, 10L-1Cr, 1-10Cr, >10Cr), estimated_effort,
+    eligibility_notes, key_dates, days_to_close, risk_flags (short window, high EMD,
+    unclear scope, re-tender), relevance_score 0-100 against a keyword profile you set
+    (config/profile.yaml: e.g. "solar, IT services, civil works Jaipur").
+  Provider options:
+    a) GitHub Models (free tier, uses the workflow's GITHUB_TOKEN with permission
+       "models: read"; endpoint https://models.github.ai/inference). No extra key.
+       NOTE: adding "models: read" changes GitHub Actions permissions -> needs your OK.
+    b) OpenAI / Gemini / Anthropic key stored as a repo SECRET (never in code).
+  Cost control: only new/changed tenders; batch 10-20 per call; cap per run (e.g. 300);
+  cache results in tenders.json; fall back to rule-based tags if the LLM call fails.
+
+  Sample analysis done during research (by hand, on the live tender 2026_AGRIC_603900_1):
+    Summary: Rate contract to supply soil testing kits to schools under RKVY Soil Health
+             scheme, JD Agriculture (Ext.) Chittorgarh. Goods, item rate, 2 covers.
+    Value: Rs 15 lakh (band 10L-1Cr). EMD Rs 30,000 (2%). Fee Rs 1,000 + Rs 500 RISL.
+    Dates: published 13-Oct, bid end 28-Oct-2026 11:00, opening 28-Oct 15:00, 360-day term.
+    Flags: closes within 1 day; offline DD/BC payment; eligibility only in tender docs.
+
+
+=====================================================================
+PART E - REPOSITORY LAYOUT (TO BUILD)
+=====================================================================
+  crawler/
+    gepnic.py        session handling, org list, org tender list, detail parser
+    dedupe.py        DB load/save, new/changed/closed logic, hashing
+    analyse.py       LLM client + prompt + JSON validation + fallback
+    report.py        builds site/ (index.html, tender pages, data JSON, RSS feed)
+    main.py          orchestrates: crawl -> dedupe -> detail -> analyse -> report
+  config/
+    sources.yaml     portals (base_url, name) - Rajasthan first, others later
+    profile.yaml     keywords / sectors / locations / value range for relevance scoring
+  data/
+    tenders.json     the de-dup database (committed by the workflow)
+    runs/            one small JSON log per run (counts, errors, duration)
+  site/              generated static website (published to GitHub Pages)
+  tests/             parser tests against saved HTML fixtures (research/*.html)
+  .github/workflows/daily.yml
+  requirements.txt   requests, beautifulsoup4, lxml, pyyaml, jinja2 (+ LLM SDK)
+
+
+=====================================================================
+PART F - WEBSITE (GITHUB PAGES)
+=====================================================================
+  Static site, no server. Pages:
+    - index.html: "New today" (count + cards), "Closing in 3 days", "Updated (corrigendum)",
+      filters (org, category, location, value band, relevance), search box (client-side JS
+      over data/tenders.json), sort by closing date / value / relevance.
+    - tender/<tender_id>.html: all fields, LLM analysis, change history, "How to open on
+      portal" (go to eproc.rajasthan.gov.in -> Search -> Tender ID).
+    - archive by date (report/YYYY-MM-DD.html) so past daily reports stay available.
+    - feed.xml (RSS) and optional daily email/Telegram summary (secret-based) later.
+  IMPORTANT: the repo gauraviiitg/Web_crawler is PRIVATE. GitHub Pages on a private repo
+  needs a paid plan (Pro/Team). Choices: make the repo public (the data is public tender
+  data; never commit secrets), or upgrade, or publish site/ to a separate public repo.
+
+
+=====================================================================
+PART G - GITHUB ACTIONS SCHEDULE
+=====================================================================
+  09:00 IST = 03:30 UTC  ->  cron: "30 3 * * *"
+  GitHub scheduled runs can start late (often 5-30 min, sometimes more at peak).
+  To be safe use "0 3 * * *" (08:30 IST) so the report is ready by 09:00.
+  Also add workflow_dispatch for manual runs.
+  Job steps: checkout -> setup-python -> pip install -> python -m crawler.main ->
+             commit data/ changes -> upload site/ artifact -> deploy-pages.
+  Permissions needed: contents: write (commit data), pages: write, id-token: write
+  (Pages deploy), models: read (only if GitHub Models used). These need your approval.
+  Scheduled workflows are auto-disabled after 60 days without repo activity; the daily data
+  commit counts as activity, so this stays alive.
+  Failure handling: retries with backoff on network errors; if the site is down the run
+  keeps yesterday's report and writes the error into data/runs/; optional issue-on-failure.
+
+
+=====================================================================
+PART H - STEP-BY-STEP BUILD ORDER
+=====================================================================
+  1.  Decide Part B (documents), Part D (LLM provider), Part F (public vs paid Pages).
+  2.  Turn research probes into crawler/gepnic.py; save HTML fixtures; write parser tests.
+  3.  Implement dedupe.py + tenders.json schema; test with two consecutive local runs
+      (second run must report 0 new).
+  4.  Implement analyse.py with the chosen provider; test on 10 tenders; validate JSON.
+  5.  Implement report.py (Jinja2 templates); open site/index.html locally.
+  6.  Run a full local crawl (first run, ~2,150 tenders, polite delays).
+  7.  Add .github/workflows/daily.yml on a feature branch; open a pull request.
+  8.  Enable Pages (Settings -> Pages -> Source: GitHub Actions); add any secrets.
+  9.  Trigger workflow_dispatch; confirm the runner can reach the portal (Part A6).
+  10. Merge; watch the next 09:00 run; check "New today" is small and correct (de-dup works).
+  11. Phase 2: profile-based relevance tuning, alerts (email/Telegram), more portals
+      (SPPP, Central eProcure, other NIC states), Hindi summaries.
+
+
+=====================================================================
+PART I - RISKS / KNOWN LIMITS
+=====================================================================
+  - Site HTML changes (NIC upgrades) can break parsing -> fixture tests + run log alerts.
+  - Session-bound links -> no deep links in the report.
+  - Geo-blocking from GitHub runners -> verify on first run; proxy/self-hosted fallback.
+  - Corrigendum list is captcha-protected -> corrigenda detected indirectly via changed
+    dates/values on the detail page (content_hash).
+  - Tender documents (PDF) not analysed unless Part B option 3 is chosen.
+  - LLM output can be wrong -> always show the raw official fields next to the analysis.
+  - Be polite: one connection, delays, one run per day; the portal is public infrastructure.
+
+
+=====================================================================
+APPENDIX - RESEARCH ARTIFACTS (research/ folder)
+=====================================================================
+  probe_org.py      org list -> org tenders -> detail (proves the no-captcha path)
+  parse_detail.py   td_caption / td_field extraction of all detail fields
+  probe_paging.py   confirms no pagination on org pages (720 rows on one page)
+  probe_timing.py   request timings + proves links are session-bound
+  probe_docs.py     shows document downloads are captcha-gated
+  dump.py           quick HTML-to-text + links/forms dump for any saved page

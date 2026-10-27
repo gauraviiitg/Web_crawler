@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rajasthan Govt Tenders - Daily Report</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1 id="title">Rajasthan Govt Tenders</h1>
+    <p class="sub">Updated <span id="updated">-</span> · Source: <a id="portal" target="_blank" rel="noopener"></a> · <span id="runinfo"></span></p>
+    <div class="stats" id="stats"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <nav class="tabs" id="tabs">
+    <button data-tab="new" class="active">New today</button>
+    <button data-tab="worth">Worth reading</button>
+    <button data-tab="closing">Closing in 3 days</button>
+    <button data-tab="updated">Updated</button>
+    <button data-tab="all">All active</button>
+    <button data-tab="closed">Recently closed</button>
+  </nav>
+
+  <section class="filters">
+    <input id="q" type="search" placeholder="Search title, tender ID, organisation, location...">
+    <select id="f-org"><option value="">All organisations</option></select>
+    <select id="f-sector"><option value="">All sectors</option></select>
+    <select id="f-decision">
+      <option value="">Any decision</option>
+      <option value="worth_reading">Worth reading</option>
+      <option value="maybe">Maybe</option>
+      <option value="skip">Skip</option>
+    </select>
+    <select id="f-value">
+      <option value="">Any value</option>
+      <option value="0-1000000">Below ₹10 lakh</option>
+      <option value="1000000-10000000">₹10 lakh – ₹1 crore</option>
+      <option value="10000000-100000000">₹1 – ₹10 crore</option>
+      <option value="100000000-">Above ₹10 crore</option>
+      <option value="none">Value not disclosed</option>
+    </select>
+    <select id="sort">
+      <option value="relevance">Sort: relevance</option>
+      <option value="closing">Sort: closing soonest</option>
+      <option value="newest">Sort: newest</option>
+      <option value="value">Sort: highest value</option>
+    </select>
+  </section>
+
+  <p class="count" id="count"></p>
+  <div id="list" class="list"></div>
+  <button id="more" class="more" hidden>Show more</button>
+</main>
+
+<dialog id="dlg"><div id="dlg-body"></div></dialog>
+
+<footer class="wrap">
+  Tender data is read from public pages of the Rajasthan eProcurement portal. Classification and
+  "worth reading" decisions are AI-generated and can be wrong — always verify on the official portal
+  before bidding. To open a tender: go to the portal → Search → enter the Tender ID.
+</footer>
+<script src="app.js"></script>
+</body>
+</html>
