@@ -6,7 +6,13 @@ name: GeM bids (this PC)
 # Steps use cmd and the PC's own Python: PowerShell scripts are blocked by the execution policy.
 on:
   schedule:
-    - cron: "30 2 * * *"   # 02:30 UTC = 08:00 IST, before the 08:30 IST daily crawl
+    # 21:30 UTC = 03:00 IST. The later entries are retries (04:00, 05:00, 06:00, 07:30 IST):
+    # they skip themselves once a complete GeM snapshot was fetched today.
+    - cron: "30 21 * * *"
+    - cron: "30 22 * * *"
+    - cron: "30 23 * * *"
+    - cron: "30 0 * * *"
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 permissions:
@@ -20,7 +26,7 @@ concurrency:
 jobs:
   gem:
     runs-on: [self-hosted, Windows, gem]
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         shell: cmd
@@ -37,10 +43,17 @@ jobs:
           py -3 -m venv .venv || exit /b 1
           .venv\Scripts\python -m pip install -q -r requirements.txt
 
-      - name: Fetch GeM bids for Rajasthan
+      - name: Has today's GeM fetch already succeeded?
+        id: done
+        if: github.event_name == 'schedule'
+        run: .venv\Scripts\python -m crawler.main --done-today gem
+
+      - name: Fetch GeM bids for Rajasthan (3 attempts, 5 minutes apart)
+        if: steps.done.outputs.done != 'true'
         run: .venv\Scripts\python -m crawler.main --gem-snapshot data/gem_bids.json
 
       - name: Commit GeM snapshot
+        if: steps.done.outputs.done != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -54,6 +67,7 @@ jobs:
           exit /b 1
 
       - name: Rebuild the site with the new bids
+        if: steps.done.outputs.done != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run daily.yml -R ${{ github.repository }}

@@ -34,6 +34,19 @@ def main() -> int:
     ctx.eval("var DATA = " + data + ";" + STUB)
     ctx.eval(app)
     ctx.eval("1")  # let promises settle
+    tab = lambda t: ctx.eval("handlers['tabs:click']({ target: { closest: () => ({ dataset: { tab: '%s' } }) } })" % t)
+    default = json.loads(ctx.eval("JSON.stringify({ tab: state.tab, list: els.list.innerHTML.length, count: els.count.textContent })"))
+    print("default:", default)
+    tab("personal")
+    shown = ctx.eval("els.sections.hidden")
+    n_section = ctx.eval("els.count.textContent")
+    tab("personal")
+    toggled = json.loads(ctx.eval("JSON.stringify({ hidden: els.sections.hidden, count: els.count.textContent })"))
+    print(f"personal: chips hidden={shown} ({n_section}) -> second click {toggled}")
+    sort = ctx.eval("els.sort.value = 'value_asc'; handlers['sort:input'](); els.list.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 160)")
+    print("lowest value first:", sort.encode("ascii", "replace").decode())
+    ctx.eval("els.sort.value = 'relevance'")
+    tab("picks")
     picks = lambda: ctx.eval("(els.briefing.innerHTML.match(/class=\"pick\"/g) || []).length")
     all_picks = picks()
     ctx.eval("els['f-district'].value = 'Jaipur'; handlers['f-district:input']()")
@@ -53,6 +66,8 @@ def main() -> int:
           personalTab: tabs[3].innerHTML, sections: els.sections.innerHTML, sectionsHidden: els.sections.hidden,
           portalLinks: (els.list.innerHTML.match(/class="portal/g) || []).length + (els.briefing.innerHTML.match(/class="portal/g) || []).length,
           howOpen: els['dlg-body'].innerHTML.includes('class="box how"'),
+          infoHidden: els['dlg-body'].innerHTML.includes('<details class="box info">'),
+          tab: state.tab,
           firstCard: els.list.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 200),
           head: els.briefing.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 260)})"""))
     ctx.eval("els['f-source'].value = 'gem'; tabs[0].dataset.tab; handlers['tabs:click']({ target: { closest: () => ({ dataset: { tab: 'all' } }) } }); handlers['f-source:input']()")
@@ -63,7 +78,9 @@ def main() -> int:
     print("gem filter:", gem)
     print(json.dumps(out, ensure_ascii=True, indent=1))
     en, hi = out["en"], out["hi"]
-    ok = (all_picks > 0 and saved == "Jaipur" and en["briefing"] > 500 and not en["hidden"] and en["list"] == 0
+    ok = (default["tab"] == "all" and default["list"] > 500 and shown is False and toggled["hidden"] is True
+          and all(v["infoHidden"] and not v["howOpen"] for v in out.values())
+          and all_picks > 0 and saved == "Jaipur" and en["briefing"] > 500 and not en["hidden"] and en["list"] == 0
           and hi["hidden"] and hi["list"] > 500 and all(v["dialog"] > 500 for v in out.values())
           and (gem["pdfLinks"] > 0 and gem["eprocCards"] == 0 if "GeM" in gem["sources"] and "(0)" not in gem["sources"] else True))
     print("SMOKE OK" if ok else "SMOKE FAILED")

@@ -2,9 +2,13 @@ name: Daily tender crawl
 
 on:
   schedule:
-    # 03:00 UTC = 08:30 IST. Scheduled runs often start a few minutes late,
-    # so starting at 08:30 makes the report ready by 09:00 IST.
-    - cron: "0 3 * * *"
+    # 21:30 UTC = 03:00 IST. The later entries are retries (04:00, 05:00, 06:00, 07:30 IST):
+    # they skip themselves once a complete crawl has succeeded today.
+    - cron: "30 21 * * *"
+    - cron: "30 22 * * *"
+    - cron: "30 23 * * *"
+    - cron: "30 0 * * *"
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 permissions:
@@ -17,7 +21,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      done: ${{ steps.done.outputs.done }}
+    steps:
+      - uses: actions/checkout@v5
+        if: github.event_name == 'schedule'
+
+      - uses: actions/setup-python@v6
+        if: github.event_name == 'schedule'
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Has today's crawl already succeeded?
+        id: done
+        if: github.event_name == 'schedule'
+        run: |
+          pip install -q -r requirements.txt
+          python -m crawler.main --done-today eproc
+
   crawl:
+    needs: check
+    if: needs.check.outputs.done != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 150
     steps:
@@ -68,7 +95,7 @@ jobs:
 
   deploy:
     needs: crawl
-    if: always() && needs.crawl.result != 'cancelled'
+    if: always() && (needs.crawl.result == 'success' || needs.crawl.result == 'failure')
     runs-on: ubuntu-latest
     environment:
       name: github-pages

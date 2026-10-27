@@ -222,6 +222,25 @@ def test_gem_snapshot_roundtrip(tmp_path):
     assert load_snapshot(path, datetime(2026, 10, 29, 9), 36) is None
 
 
+def test_done_today(tmp_path):
+    import json
+
+    from crawler.main import done_today
+
+    data, snap = tmp_path / "t.json", tmp_path / "g.json"
+    now = datetime(2026, 10, 28, 4, 0)
+    assert not done_today("eproc", data, snap, now) and not done_today("gem", data, snap, now)
+    runs = [{"started": "2026-10-28T03:02", "status": "crawl_failed", "crawl": None},
+            {"started": "2026-10-27T03:02", "status": "ok", "crawl": {"complete": True}}]
+    data.write_text(json.dumps({"runs": runs}), encoding="utf-8")
+    assert not done_today("eproc", data, snap, now)
+    runs.append({"started": "2026-10-28T04:01", "status": "ok", "crawl": {"complete": True}})
+    data.write_text(json.dumps({"runs": runs}), encoding="utf-8")
+    assert done_today("eproc", data, snap, now)
+    snap.write_text(json.dumps({"fetched_at": "2026-10-28T03:05", "stats": {"complete": True}}), encoding="utf-8")
+    assert done_today("gem", data, snap, now)
+
+
 def test_districts():
     assert districts_for({"location": "ADA, Ajmer"}) == ["Ajmer"]
     assert districts_for({"location": "Dholpur and Bharatpur"}) == ["Bharatpur", "Dholpur"]

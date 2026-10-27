@@ -75,9 +75,11 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 16px 40px; }
 a.portal.small { font-size: 12px; padding: 2px 10px; border: 1px solid var(--brand); border-radius: 999px; text-decoration: none; color: var(--brand); background: #fff; white-space: nowrap; }
 a.portal.small:hover { background: var(--brand); color: #fff; }
 .psec li a.portal.small { display: inline-block; margin-top: 4px; }
-.box.how { background: #f0f9ff; border-color: #b9e6fe; }
-.box.how ol { margin: 6px 0 8px 20px; padding: 0; }
-.box.how li { margin: 2px 0; }
+details.info > summary { cursor: pointer; list-style: none; color: var(--muted, #667085); font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+details.info > summary::-webkit-details-marker { display: none; }
+details.info .i { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid currentColor; font: italic 700 12px Georgia, serif; }
+details.info[open] > summary { color: var(--brand); margin-bottom: 6px; }
+.psec li details.info { display: inline-block; margin-left: 6px; }
 a.run { font-weight: 600; white-space: nowrap; }
 .badge.gem { background: #ecfdf3; color: #067647; border-color: #abefc6; font-weight: 700; }
 .badge.personal { background: #ecfdf3; color: #05603a; font-weight: 600; }

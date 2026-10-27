@@ -17,7 +17,7 @@ and publishes the report on GitHub Pages.
    `RAJASTHAN`, then each consignee city, which gives the district). Each GeM bid links to its
    public bid PDF (`/showbidDocument/<id>`, no login or captcha). GeM refuses connections
    from GitHub's cloud runners, so `.github/workflows/gem.yml` runs on the owner's PC
-   (self-hosted runner, label `gem`, started at logon by a Windows scheduled task) at 08:00 IST
+   (self-hosted runner, label `gem`, started at logon by a Windows scheduled task) at 03:00 IST
    or from the site's "↻ Refresh GeM" button. It commits `data/gem_bids.json` and starts the
    daily job, which merges the snapshot if it is less than 36 hours old. If the PC is off, the
    run waits until it is back online.
@@ -39,8 +39,9 @@ and publishes the report on GitHub Pages.
    `?section=<id>` links open a section directly.
 8. `crawler/report.py` writes `site/data.json`; `web/` holds the static page that renders it.
 
-The schedule is in `.github/workflows/daily.yml` (03:00 UTC = 08:30 IST, so the report is ready
-by 09:00 IST). Run it manually from the Actions tab with "Run workflow".
+Both workflows start at 03:00 IST (21:30 UTC) and have retry runs at 04:00, 05:00, 06:00 and
+07:30 IST that skip themselves once that day's crawl succeeded; each crawl also retries up to 3
+times inside a run, 5 minutes apart. Run them manually from the Actions tab with "Run workflow".
 
 ## Customise
 

@@ -1,5 +1,5 @@
 const PAGE = 40;
-const state = { data: null, tab: "new", section: "", shown: PAGE, latestDay: "", lang: localStorage.getItem("lang") === "hi" ? "hi" : "en" };
+const state = { data: null, tab: "all", section: "", sectionsHidden: false, shown: PAGE, latestDay: "", lang: localStorage.getItem("lang") === "hi" ? "hi" : "en" };
 const $ = (id) => document.getElementById(id);
 
 const I18N = {
@@ -17,9 +17,7 @@ const I18N = {
     footer: "Tender data is read from public pages of the Rajasthan eProcurement portal and GeM BidPlus (bids delivered in Rajasthan). Tags and \"worth reading\" decisions come from keyword rules and can be wrong — always check the official tender document before bidding.",
     all_sources: "All portals", src_eproc: "Rajasthan eProc", src_gem: "GeM",
     kw_analysis: "Keyword analysis", open_pdf: "Open bid PDF",
-    gem_step1: "Click \"Open bid PDF\": the full GeM bid document (items, quantity, EMD, eligibility, MSE/startup relaxations) opens directly — no login or captcha.",
-    gem_step2: "To bid, register as a seller on gem.gov.in (free: PAN, Aadhaar, Udyam, bank account) and complete your vendor assessment for the product category.",
-    gem_step3: "In the GeM seller dashboard, open Bids and search the bid number {id}.",
+    sort_value_asc: "Sort: lowest value",
     gem_refresh: "↻ Refresh GeM", gem_fetched: "bids fetched {t}", gem_missing: "not fetched — PC offline?",
     b_rules: "Picked by keyword rules", quantity: "Quantity", ministry: "Ministry", department: "Department", limited_tender: "Limited tender",
     lang_toggle: "हिंदी", st_active: "Active tenders", st_new: "New today", st_worth: "Worth reading",
@@ -46,9 +44,6 @@ const I18N = {
     tab_personal: "Personalised", b_personal: "Your personalised sections", b_open_new: "{o} open · {n} new today",
     see_all: "See all", no_sections: "No personalised sections configured (config/settings.yaml → personalised).",
     open_tender: "Open tender on portal", portal_tip: "Copies {id} and opens the portal list; click \"{org}\", then Ctrl+F and paste",
-    how_open: "How to open this tender and its PDFs", step1: "Click \"Open tender on portal\" (the Tender ID is copied for you).",
-    step2: "On the portal page, click the organisation {org}.", step3: "Press Ctrl+F, paste {id} and click the tender title.",
-    step4: "On the tender page, click a document (NIT PDF, BOQ) and type the captcha to download it.",
     docs: "Documents on the portal", docs_note: "The portal requires a captcha for each download, so the files can't be linked directly.",
   },
   hi: {
@@ -64,9 +59,7 @@ const I18N = {
     footer: "टेंडर डेटा राजस्थान ई-प्रोक्योरमेंट पोर्टल और GeM BidPlus (राजस्थान में डिलीवरी वाली बोलियाँ) के सार्वजनिक पृष्ठों से लिया गया है। टैग और \"पढ़ने योग्य\" निर्णय कीवर्ड नियमों से बने हैं और गलत हो सकते हैं — बोली लगाने से पहले आधिकारिक टेंडर दस्तावेज़ अवश्य जाँचें।",
     all_sources: "सभी पोर्टल", src_eproc: "राजस्थान ई-प्रोक", src_gem: "GeM",
     kw_analysis: "कीवर्ड विश्लेषण", open_pdf: "बोली PDF खोलें",
-    gem_step1: "\"बोली PDF खोलें\" पर क्लिक करें: GeM बोली का पूरा दस्तावेज़ (सामान, मात्रा, ईएमडी, पात्रता, एमएसई/स्टार्टअप छूट) सीधे खुलेगा — लॉगिन या कैप्चा नहीं।",
-    gem_step2: "बोली लगाने के लिए gem.gov.in पर विक्रेता के रूप में पंजीकरण करें (मुफ़्त: पैन, आधार, उद्यम, बैंक खाता) और उत्पाद श्रेणी का वेंडर असेसमेंट पूरा करें।",
-    gem_step3: "GeM विक्रेता डैशबोर्ड में Bids खोलें और बोली संख्या {id} खोजें।",
+    sort_value_asc: "क्रम: न्यूनतम मूल्य",
     gem_refresh: "↻ GeM रीफ़्रेश करें", gem_fetched: "बोलियाँ {t} को ली गईं", gem_missing: "नहीं ली गईं — पीसी बंद?",
     b_rules: "कीवर्ड नियमों से चयनित", quantity: "मात्रा", ministry: "मंत्रालय", department: "विभाग", limited_tender: "सीमित निविदा",
     lang_toggle: "English", st_active: "सक्रिय टेंडर", st_new: "आज नए", st_worth: "पढ़ने योग्य", st_closing: "3 दिन में बंद",
@@ -93,9 +86,6 @@ const I18N = {
     tab_personal: "व्यक्तिगत", b_personal: "आपके व्यक्तिगत अनुभाग", b_open_new: "{o} खुले · आज {n} नए",
     see_all: "सभी देखें", no_sections: "कोई व्यक्तिगत अनुभाग सेट नहीं है (config/settings.yaml → personalised)।",
     open_tender: "पोर्टल पर टेंडर खोलें", portal_tip: "{id} कॉपी होगा और पोर्टल सूची खुलेगी; \"{org}\" पर क्लिक करें, फिर Ctrl+F से पेस्ट करें",
-    how_open: "यह टेंडर और इसकी PDF कैसे खोलें", step1: "\"पोर्टल पर टेंडर खोलें\" पर क्लिक करें (टेंडर आईडी अपने-आप कॉपी हो जाएगी)।",
-    step2: "पोर्टल पेज पर विभाग {org} पर क्लिक करें।", step3: "Ctrl+F दबाएँ, {id} पेस्ट करें और टेंडर के शीर्षक पर क्लिक करें।",
-    step4: "टेंडर पेज पर दस्तावेज़ (NIT PDF, BOQ) पर क्लिक करें और कैप्चा भरकर डाउनलोड करें।",
     docs: "पोर्टल पर दस्तावेज़", docs_note: "पोर्टल हर डाउनलोड पर कैप्चा माँगता है, इसलिए फ़ाइलों का सीधा लिंक नहीं दिया जा सकता।",
   },
 };
@@ -168,7 +158,7 @@ function inTab(t, tab) {
     case "picks": return pickIds().has(t.id);
     case "new": return t.status === "active" && isNew(t);
     case "worth": return t.status === "active" && t.analysis?.decision === "worth_reading";
-    case "personal": return t.status === "active" && (state.section ? (t.personal || []).includes(state.section) : t.personal?.length > 0);
+    case "personal": return t.status === "active" && (state.section && !state.sectionsHidden ? (t.personal || []).includes(state.section) : t.personal?.length > 0);
     case "closing": return t.status === "active" && dl != null && dl >= 0 && dl <= 3;
     case "updated": return t.status === "active" && t.changes?.length > 0;
     case "closed": return t.status !== "active";
@@ -242,6 +232,7 @@ function sorted(list) {
     closing: (a, b) => (a.closing || "9").localeCompare(b.closing || "9"),
     newest: (a, b) => (b.published || "").localeCompare(a.published || ""),
     value: (a, b) => (b.value ?? -1) - (a.value ?? -1),
+    value_asc: (a, b) => (a.value ?? Infinity) - (b.value ?? Infinity) || (a.closing || "9").localeCompare(b.closing || "9"),
   }[by];
   return list.slice().sort(cmp);
 }
@@ -258,7 +249,6 @@ function card(t) {
   (t.personal || []).forEach((id) => badges.push(`<span class="badge personal">★ ${esc(sectionName(id))}</span>`));
   if (a.sector) badges.push(`<span class="badge">${esc(a.sector)}</span>`);
   if (a.work_type) badges.push(`<span class="badge">${esc(a.work_type)}</span>`);
-  (a.risk_flags || []).slice(0, 3).forEach((f) => badges.push(`<span class="badge flag">${esc(f)}</span>`));
   if (a.source === "rules" && state.data.llm_enabled) badges.push(`<span class="badge rules" title="${T("rule_based_tip")}">${T("rule_based")}</span>`);
   if (t.source === "gem") badges.unshift(`<span class="badge gem">GeM</span>`);
   return `<article class="card" data-id="${esc(t.id)}">
@@ -292,18 +282,6 @@ function tenderRef(id) {
   return state.data.tenders.find((x) => x.id === id) || { id, org: "" };
 }
 
-function portalSteps(t) {
-  if (t.source === "gem") {
-    return `<ol class="steps"><li>${T("gem_step1")}</li><li>${T("gem_step2")}</li>
-      <li>${T("gem_step3", { id: `<b>${esc(t.id)}</b>` })}</li></ol>`;
-  }
-  return `<ol class="steps">
-    <li>${T("step1")}</li>
-    <li>${T("step2", { org: `<b>${esc(t.org || "")}</b>` })}</li>
-    <li>${T("step3", { id: `<b>${esc(t.id)}</b>` })}</li>
-    <li>${T("step4")}</li></ol>`;
-}
-
 function sectionName(id) {
   const s = (state.data.personalised || []).find((x) => x.id === id);
   return s ? pickLang(s.name_en, s.name_hi) : id;
@@ -312,7 +290,7 @@ function sectionName(id) {
 function renderSections() {
   const box = $("sections");
   const sections = state.data.personalised || [];
-  box.hidden = state.tab !== "personal";
+  box.hidden = state.tab !== "personal" || state.sectionsHidden;
   if (box.hidden) return;
   if (!sections.length) { box.innerHTML = `<p class="meta">${T("no_sections")}</p>`; return; }
   if (!sections.some((s) => s.id === state.section)) state.section = sections[0].id;
@@ -323,7 +301,7 @@ function renderSections() {
 }
 
 function openSection(id) {
-  state.tab = "personal"; state.section = id; state.shown = PAGE;
+  state.tab = "personal"; state.section = id; state.sectionsHidden = false; state.shown = PAGE;
   render();
   $("tabs").scrollIntoView?.({ behavior: "smooth" });
 }
@@ -348,9 +326,11 @@ function renderBriefing() {
           <span>${T("b_cash")}: <b>${p.cash_to_bid != null ? "₹" + Number(p.cash_to_bid).toLocaleString("en-IN") : "-"}</b></span>
           <span>${T("b_deadline")}: <b>${fmtDate(p.closing)}</b>${p.days_left != null ? ` (${T("b_days", { n: Math.floor(p.days_left) })})` : ""}</span>
         </div>
+        <details class="info"><summary><span class="i">i</span> ${T("kw_analysis")}</summary>
         ${L(p, "why") ? `<p><b>${T("b_why")}:</b> ${esc(L(p, "why"))}</p>` : ""}
         ${(state.lang === "hi" && p.risks_hi?.length ? p.risks_hi : p.risks_en)?.length ? `<b>${T("b_risks")}</b>${list(state.lang === "hi" && p.risks_hi?.length ? p.risks_hi : p.risks_en)}` : ""}
         ${L(p, "next_step") ? `<p class="next"><b>${T("b_next")}:</b> ${esc(L(p, "next_step"))}</p>` : ""}
+        </details>
         <div class="actions">${portalButton(tenderRef(p.tender_id))}
           <a class="secondary" href="?id=${encodeURIComponent(p.tender_id)}" data-id="${esc(p.tender_id)}">${T("b_open")}</a></div>
       </div>
@@ -365,7 +345,7 @@ function renderBriefing() {
         const bl = state.lang === "hi" && p.blockers_hi?.length ? p.blockers_hi : p.blockers;
         return `<li><a href="?id=${encodeURIComponent(p.tender_id)}" data-id="${esc(p.tender_id)}">${esc(p.title)}</a>
           <span class="meta">${esc(p.location || "")} · ${inr(p.value)} · ${T("b_deadline")}: ${fmtDate(p.closing)}${p.cash_to_bid != null ? ` · ${T("b_cash")}: ₹${Number(p.cash_to_bid).toLocaleString("en-IN")}` : ""}</span>
-          ${bl?.length ? `<span class="blk">⚠ ${esc(bl.join("; "))}</span>` : ""}
+          ${bl?.length ? `<details class="info"><summary><span class="i">i</span></summary><span class="blk">⚠ ${esc(bl.join("; "))}</span></details>` : ""}
           ${portalButton(tenderRef(p.tender_id), "small")}</li>`;
       }).join("")}</ul>
     </div>`).join("");
@@ -438,13 +418,9 @@ function showDetail(id) {
       <button class="secondary" onclick="navigator.clipboard.writeText('${esc(t.id)}');this.textContent='${T("copied")} ${esc(t.id)}'">${T("copy_id")}</button>
       <button class="secondary" onclick="navigator.clipboard.writeText(location.origin+location.pathname+'?id=${esc(t.id)}');this.textContent='${T("link_copied")}'">${T("copy_link")}</button>
     </div>
-    <div class="box how">
-      <h4>${T("how_open")}</h4>
-      ${portalSteps(t)}
-      ${docs.length ? `<b>${T("docs")}</b><ul>${docs.map((f) => `<li>📄 ${esc(f)}</li>`).join("")}</ul><p class="meta">${T("docs_note")}</p>` : ""}
-    </div>
-    <div class="box">
-      <h4>${a.source === "llm" ? T("ai_analysis") : state.data.llm_enabled ? T("rule_analysis") : T("kw_analysis")}</h4>
+    ${docs.length ? `<div class="box"><b>${T("docs")}</b><ul>${docs.map((f) => `<li>📄 ${esc(f)}</li>`).join("")}</ul><p class="meta">${T("docs_note")}</p></div>` : ""}
+    <details class="box info">
+      <summary><span class="i">i</span> ${a.source === "llm" ? T("ai_analysis") : state.data.llm_enabled ? T("rule_analysis") : T("kw_analysis")}</summary>
       ${a.summary ? `<p>${esc(pickLang(a.summary, a.summary_hi))}</p>` : ""}
       ${a.reason ? `<p><b>${T("why")}:</b> ${esc(pickLang(a.reason, a.reason_hi))}</p>` : ""}
       ${a.upfront_cost_inr != null ? `<p><b>${T("cash_to_bid")}:</b> ₹${Number(a.upfront_cost_inr).toLocaleString("en-IN")}</p>` : ""}
@@ -452,7 +428,7 @@ function showDetail(id) {
       ${a.key_requirements?.length ? `<b>${T("key_req")}</b>${list(a.key_requirements)}` : ""}
       ${a.risk_flags?.length ? `<b>${T("risk_flags")}</b>${list(a.risk_flags)}` : ""}
       ${a.model ? `<p class="meta">${T("model")}: ${esc(a.model)} · ${fmtDate(a.analysed_at)}${a.basis === "listing" ? " · " + T("listing_only") : ""}</p>` : ""}
-    </div>
+    </details>
     ${hasDetail(t) ? "" : `<p class="warn">${T("no_detail")}</p>`}
     <table class="kv">
       <tr><td>${T("tender_id")}</td><td>${esc(t.id)}</td></tr>
@@ -516,8 +492,6 @@ async function init() {
 
   fillSelect("f-org", d.tenders.map((t) => t.org));
   fillSelect("f-sector", d.tenders.map((t) => t.analysis?.sector));
-  if (d.briefing?.picks?.length) state.tab = "picks";
-  else if (!active.some(isNew)) state.tab = "worth";
   $("lang").addEventListener("click", () => {
     state.lang = state.lang === "hi" ? "en" : "hi";
     localStorage.setItem("lang", state.lang);
@@ -539,6 +513,7 @@ async function init() {
   $("tabs").addEventListener("click", (e) => {
     const b = e.target.closest("button");
     if (!b) return;
+    if (b.dataset.tab === "personal") state.sectionsHidden = state.tab === "personal" && !state.sectionsHidden;
     state.tab = b.dataset.tab; state.shown = PAGE; render();
   });
   ["q", "f-district", "f-source", "f-org", "f-sector", "f-decision", "f-value", "sort"].forEach((id) =>

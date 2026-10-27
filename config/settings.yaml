@@ -6,6 +6,8 @@ portal:
   request_delay_seconds: 0.5
   timeout_seconds: 60
   verify_tls: false
+  crawl_attempts: 3          # retries inside one run; the workflow also re-runs later in the morning
+  retry_wait_seconds: 300
 
 # The LLM uses this profile to decide which tenders are worth reading.
 # Edit freely: describe what kind of tenders matter to you.

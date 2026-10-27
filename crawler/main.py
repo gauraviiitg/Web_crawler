@@ -10,7 +10,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -112,6 +114,46 @@ def merge_gem(bids: list, stats: dict, store: Store, now_str: str, state: str) -
     return stats
 
 
+def done_today(portal: str, data_path: Path, snapshot_path: Path, now: datetime) -> bool:
+    """True if a complete crawl of `portal` already succeeded today (IST); retry runs then skip."""
+    today = now.strftime("%Y-%m-%d")
+    if portal == "gem":
+        if not snapshot_path.exists():
+            return False
+        snap = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        return snap.get("fetched_at", "")[:10] == today and bool((snap.get("stats") or {}).get("complete"))
+    if not data_path.exists():
+        return False
+    runs = json.loads(data_path.read_text(encoding="utf-8")).get("runs") or []
+    return any(r.get("started", "")[:10] == today and r.get("status") == "ok" and (r.get("crawl") or {}).get("complete")
+               for r in runs)
+
+
+def gem_snapshot(gem_cfg: dict, path: Path, attempts: int = 3, wait_seconds: int = 300) -> int:
+    """Fetch GeM bids, retrying a failed or incomplete crawl; keeps the most complete result."""
+    best = None
+    for attempt in range(1, attempts + 1):
+        gem = GemClient(delay=gem_cfg.get("request_delay_seconds", 0.5), timeout=gem_cfg.get("timeout_seconds", 60))
+        try:
+            bids, stats = gem.state_bids(gem_cfg.get("state", "RAJASTHAN"))
+            stats["requests"] = gem.request_count
+            if best is None or len(bids) > len(best[0]):
+                best = (bids, stats)
+            if stats["complete"]:
+                break
+            log.warning("GeM attempt %d incomplete: %s", attempt, stats)
+        except Exception:
+            log.exception("GeM attempt %d failed", attempt)
+        if attempt < attempts:
+            time.sleep(wait_seconds)
+    if not best or not best[0]:
+        return 1
+    now_str = datetime.now(IST).strftime("%Y-%m-%dT%H:%M")
+    save_snapshot(path, best[0], best[1], now_str)
+    log.info("GeM snapshot: %d bids -> %s (%s)", len(best[0]), path, best[1])
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-orgs", type=int, default=None)
@@ -119,6 +161,8 @@ def main() -> int:
     parser.add_argument("--no-gem", action="store_true", help="skip the GeM BidPlus crawl")
     parser.add_argument("--only-gem", action="store_true", help="skip the eProc crawl (testing)")
     parser.add_argument("--gem-snapshot", metavar="PATH", help="only fetch GeM bids and save them to PATH")
+    parser.add_argument("--done-today", choices=("eproc", "gem"),
+                        help="only report (to $GITHUB_OUTPUT) whether today's crawl of that portal succeeded")
     parser.add_argument("--data", default=str(ROOT / "data" / "tenders.json"))
     args = parser.parse_args()
 
@@ -129,26 +173,37 @@ def main() -> int:
     now_str = now.strftime("%Y-%m-%dT%H:%M")
     started = time.time()
     gem_cfg = cfg.get("gem") or {}
+    if args.done_today:
+        done = done_today(args.done_today, Path(args.data), ROOT / gem_cfg.get("snapshot", "data/gem_bids.json"), now)
+        log.info("%s already crawled successfully today: %s", args.done_today, done)
+        if os.environ.get("GITHUB_OUTPUT"):
+            with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as fh:
+                fh.write(f"done={'true' if done else 'false'}\n")
+        return 0
     if args.gem_snapshot:
-        gem = GemClient(delay=gem_cfg.get("request_delay_seconds", 0.5), timeout=gem_cfg.get("timeout_seconds", 60))
-        bids, stats = gem.state_bids(gem_cfg.get("state", "RAJASTHAN"))
-        stats["requests"] = gem.request_count
-        save_snapshot(Path(args.gem_snapshot), bids, stats, now_str)
-        log.info("GeM snapshot: %d bids -> %s (%s)", len(bids), args.gem_snapshot, stats)
-        return 0 if stats["listed"] else 1
+        return gem_snapshot(gem_cfg, Path(args.gem_snapshot))
     store = Store(Path(args.data))
     portal = cfg["portal"]
     client = GepnicClient(portal["base_url"], delay=portal.get("request_delay_seconds", 0.5),
                           timeout=portal.get("timeout_seconds", 60), verify_tls=portal.get("verify_tls", False))
 
     run = {"started": now_str, "status": "ok", "error": None}
-    try:
-        if not args.only_gem:
-            run["crawl"] = crawl(client, store, now_str, args.max_orgs)
-    except Exception as exc:  # keep yesterday's data and still publish the site
-        log.exception("crawl failed")
-        run["status"] = "crawl_failed"
-        run["error"] = f"{type(exc).__name__}: {exc}"[:500]
+    attempts = portal.get("crawl_attempts", 3)
+    for attempt in range(1, attempts + 1):
+        try:
+            if not args.only_gem:
+                run["crawl"] = crawl(client, store, now_str, args.max_orgs)
+            run.update(status="ok", error=None, attempts=attempt)
+            break
+        except Exception as exc:  # keep yesterday's data and still publish the site
+            log.exception("crawl attempt %d failed", attempt)
+            run["status"] = "crawl_failed"
+            run["error"] = f"{type(exc).__name__}: {exc}"[:500]
+            run["attempts"] = attempt
+            if attempt < attempts:
+                time.sleep(portal.get("retry_wait_seconds", 300))
+                client = GepnicClient(portal["base_url"], delay=portal.get("request_delay_seconds", 0.5),
+                                      timeout=portal.get("timeout_seconds", 60), verify_tls=portal.get("verify_tls", False))
     run["requests"] = client.request_count
 
     if gem_cfg.get("enabled") and not args.no_gem:
