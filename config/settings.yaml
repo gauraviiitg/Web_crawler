@@ -25,6 +25,7 @@ profile:
   max_value_inr: 2500000   # prefer first orders up to Rs 25 lakh (working capital risk)
   min_days_left: 5         # time needed to get a DSC, enrol on the portal and prepare the bid
   interests:
+    - photocopy and photostat services
     - stationery
     - office supplies
     - canvas bags
@@ -59,6 +60,46 @@ llm:
         - qwen/qwen3.8-27b
       max_requests_per_run: 400      # free tier: ~1,000 requests/day
       seconds_between_requests: 40   # free tier: 8K tokens/minute; one batch is ~5K tokens
+
+# Personalised sections: tenders matching a section get their own list on the site
+# ("Personalised" tab), a relevance boost, and are tagged by the LLM too.
+# Keywords match whole words (plural "s"/"es" allowed), case-insensitive.
+personalised:
+  - id: photocopy
+    name_en: Photocopy & printing
+    name_hi: फोटोकॉपी व प्रिंटिंग
+    description: >
+      Photocopy / photostat / xerox job work, computer typing and plotting, printing of forms,
+      registers and stationery, printers, copiers, toner and cartridges, scanning and
+      digitisation, lamination, flex and banner printing.
+    keywords:
+      - photocopy
+      - photocopies
+      - photocopier
+      - photocopying
+      - photo copy
+      - photostat
+      - photostate
+      - xerox
+      - copier
+      - duplicating
+      - printing
+      - printer
+      - printed
+      - toner
+      - cartridge
+      - scanning
+      - scanner
+      - digitisation
+      - digitization
+      - lamination
+      - flex
+      - banner
+      - plotter
+      - poltter
+      - book binding
+      - spiral binding
+      - computer typing
 
 briefing:
   top_picks: 6      # tenders shown in the daily "top picks for us" section

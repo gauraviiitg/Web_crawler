@@ -71,4 +71,14 @@ footer { color: var(--muted); font-size: 12px; padding: 24px 16px 40px; }
 .pick p { margin: 6px 0; }
 .pick ul { margin: 4px 0 0 18px; padding: 0; }
 .pick .next { color: var(--good); }
+.badge.personal { background: #ecfdf3; color: #05603a; font-weight: 600; }
+.sections { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
+.sections button { border: 1px solid #a6f4c5; background: #f6fef9; color: #05603a; padding: 6px 12px; border-radius: 999px; cursor: pointer; font: inherit; }
+.sections button.active { background: #067647; border-color: #067647; color: #fff; }
+.sections button .n { font-size: 12px; opacity: .8; margin-left: 4px; }
+.psec h4 { margin: 10px 0 4px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.psec li { margin: 4px 0; }
+.psec li .meta { display: block; }
+.psec .blk { display: block; color: #b54708; font-size: 13px; }
+button.link { border: none; background: none; color: var(--brand); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
 .empty { text-align: center; color: var(--muted); padding: 40px; background: #fff; border-radius: 12px; border: 1px dashed var(--line); }

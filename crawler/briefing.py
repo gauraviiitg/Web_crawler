@@ -86,6 +86,8 @@ def _fact_card(r: dict, now: datetime) -> dict:
         "decision": a.get("decision"),
         "relevance": a.get("relevance"),
         "is_new": (r.get("first_seen") or "")[:10] == now.strftime("%Y-%m-%d"),
+        "blockers": a.get("blockers") or [],
+        "blockers_hi": a.get("blockers_hi") or [],
     }
 
 
@@ -182,4 +184,22 @@ def build_briefing(tenders: dict, cfg: dict, now: datetime) -> dict:
         briefing = _template(cards[:top_n], records, now)
     briefing["generated_at"] = now.strftime("%Y-%m-%dT%H:%M")
     briefing["candidates"] = len(cards)
+    briefing["personal"] = personal_summary(tenders, cfg, now)
     return briefing
+
+
+def personal_summary(tenders: dict, cfg: dict, now: datetime) -> list[dict]:
+    """Per personalised section: open / new counts and the best few tenders still open."""
+    today = now.strftime("%Y-%m-%d")
+    out = []
+    for s in cfg.get("personalised") or []:
+        rows = [r for r in tenders.values() if r.get("status") == "active" and s["id"] in (r.get("personal") or [])]
+        open_rows = [r for r in rows if (_days_left(r.get("closing"), now) or 0) >= 1]
+        open_rows.sort(key=lambda r: (bool((r.get("analysis") or {}).get("blockers")),
+                                      -((r.get("analysis") or {}).get("relevance") or 0), r.get("closing") or ""))
+        out.append({
+            "id": s["id"], "name_en": s["name_en"], "name_hi": s.get("name_hi") or s["name_en"],
+            "open": len(rows), "new": sum((r.get("first_seen") or "")[:10] == today for r in rows),
+            "top": [_fact_card(r, now) for r in open_rows[:3]],
+        })
+    return out

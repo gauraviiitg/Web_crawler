@@ -40,6 +40,7 @@ def site_record(record: dict, related: list[str]) -> dict:
         "location": detail.get("location"),
         "detail": {k: detail.get(k) for k in DETAIL_FIELDS if detail.get(k) not in (None, "", [], "NA")},
         "analysis": record.get("analysis"),
+        "personal": record.get("personal") or [],
     }
 
 
@@ -62,6 +63,7 @@ def build_site(store, cfg: dict, run: dict, now: datetime, root: Path, briefing:
         "run": run,
         "runs": store.data.get("runs", [])[-14:],
         "briefing": briefing,
+        "personalised": [{k: s.get(k) for k in ("id", "name_en", "name_hi")} for s in cfg.get("personalised") or []],
         "tenders": tenders,
     }
     (site_dir / "data.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

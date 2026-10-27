@@ -3,7 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from crawler.analyse import _validate, parse_llm_json, rule_analysis
+from crawler.analyse import (
+    _validate, analyse_tenders, match_sections, parse_llm_json, rule_analysis, section_matchers,
+)
 from crawler.briefing import build_briefing
 from crawler.gepnic import (
     TENDER_ID_RE, ListingRow, SessionExpired, parse_amount, parse_date, parse_detail,
@@ -138,6 +140,30 @@ def test_new_company_feasibility():
     drugs = dict(stationery, title="Supply of drugs and medicines")
     assert rule_analysis(drugs, profile, now)["decision"] == "skip"
     assert rule_analysis(works, profile, now)["reason_hi"].startswith("अभी संभव नहीं")
+
+
+def test_personalised_sections():
+    sections = [{"id": "photocopy", "name_en": "Photocopy & printing", "name_hi": "फोटोकॉपी",
+                 "keywords": ["photostat", "photostate", "printer", "photo copy", "flex", "lamination"]}]
+    m = section_matchers(sections)
+
+    def rec(title, **detail):
+        return {"tender_id": "2026_X_1_1", "title": title, "status": "active", "closing": "2026-11-05T18:00",
+                "detail": detail}
+
+    assert match_sections(rec("PHOTOSTATE WORK AT POLICE COMMISSIONERATE JAIPUR"), m) == ["photocopy"]
+    assert match_sections(rec("Supply of printers"), m) == ["photocopy"]
+    assert match_sections(rec("Photo  copy job work"), m) == ["photocopy"]
+    assert match_sections(rec("Flexible pipe for water supply"), m) == []
+    assert match_sections(rec("HDPE laminated kraft paper bag"), m) == []
+    assert match_sections(rec("Annual contract", product_category="Photostat services"), m) == ["photocopy"]
+
+    tenders = {"2026_X_1_1": rec("Photostat work", tender_category="Services", tenderer_class="ALL")}
+    cfg = {"profile": {"experience_years": 0}, "llm": {"providers": []}, "personalised": sections}
+    stats = analyse_tenders(tenders, cfg, datetime(2026, 10, 27, 9))
+    assert tenders["2026_X_1_1"]["personal"] == ["photocopy"]
+    assert stats["personalised"] == {"photocopy": 1}
+    assert "personalised: Photocopy & printing" in tenders["2026_X_1_1"]["analysis"]["reason"]
 
 
 def test_briefing_template_without_llm():

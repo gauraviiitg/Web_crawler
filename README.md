@@ -23,6 +23,11 @@ whether it is worth reading, and publishes the report on GitHub Pages.
    site: a ranked shortlist with why, risks and the next step, in English and Hindi (one LLM
    call; a template briefing is used without a key).
 5. The site has an English/हिंदी toggle, and `?id=<TenderID>` links open a tender directly.
+6. **Personalised** sections (`personalised:` in `config/settings.yaml`, e.g. "Photocopy &
+   printing") are matched by keywords and by the LLM on every run. Matching tenders get a
+   relevance boost, a ★ badge, their own list under the "Personalised" tab, and a summary in
+   the daily briefing. Add a section by copying the photocopy block with new keywords.
+   `?section=<id>` links open a section directly.
 
 ## LLM setup (free)
 

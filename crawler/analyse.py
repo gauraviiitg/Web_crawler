@@ -28,7 +28,7 @@ SECTORS = [
 WORK_TYPES = ["Construction", "Supply", "Service", "Maintenance", "Consultancy", "Rate Contract", "Other"]
 DECISIONS = ["worth_reading", "maybe", "skip"]
 # Bump when the prompt or profile logic changes so stored LLM analyses are redone.
-PROMPT_VERSION = "newco-2"
+PROMPT_VERSION = "newco-3"
 GENERIC_WORDS = {"works", "work", "services", "service", "supply", "hardware", "equipment", "and",
                  "goods", "items", "material", "supplies", "miscellaneous"}
 
@@ -87,7 +87,8 @@ Answer ONLY with JSON:
   "blockers": ["<max 3 things the reader probably lacks, e.g. 'contractor class C registration', 'drug licence', 'OEM authorisation', 'past supply orders'>"],
   "risk_flags": ["<short flags e.g. 'closes in 2 days', 'high EMD', 'value not disclosed', 'vague scope', 'stock funding needed', 'one lot of many'>"],
   "key_requirements": ["<max 3 short items the bidder must have/do, from the data given>"],
-  "tags": ["<max 5 short keywords>"]
+  "tags": ["<max 5 short keywords>"],
+  "personal_sections": ["<ids of the PERSONALISED SECTIONS (listed below) this tender belongs to; [] if none>"]
 }]}
 SECTORS: %s
 WORK_TYPES: %s""" % (", ".join(SECTORS), ", ".join(WORK_TYPES))
@@ -171,6 +172,25 @@ def profile_text(profile: dict) -> str:
     return "\n".join(p for p in parts if p)
 
 
+def sections_text(sections: list[dict]) -> str:
+    return "\n".join(f"- {s['id']}: {s['name_en']}. {' '.join(s.get('description', '').split())}" for s in sections)
+
+
+def section_matchers(sections: list[dict]) -> dict[str, re.Pattern]:
+    return {
+        s["id"]: re.compile(r"\b(?:%s)(?:s|es)?\b" % "|".join(
+            r"\s*".join(map(re.escape, k.split())) for k in s.get("keywords", [])), re.I)
+        for s in sections if s.get("keywords")
+    }
+
+
+def match_sections(record: dict, matchers: dict[str, re.Pattern]) -> list[str]:
+    d = record.get("detail") or {}
+    text = " ".join(str(x) for x in (record.get("title"), d.get("title"), d.get("description"),
+                                     d.get("product_category"), d.get("sub_category")) if x)
+    return [sid for sid, rx in matchers.items() if rx.search(text)]
+
+
 def upfront_cost(d: dict, startup: bool = True) -> float:
     """Cash to submit a bid as an iStart startup (EMD exempt) / Udyam MSE (50% fee, 0.5% EMD)."""
     fee = 0 if (d.get("fee_exemption") or "").lower() == "yes" else (d.get("tender_fee") or 0) / 2
@@ -214,7 +234,8 @@ def feasibility_blockers(record: dict, profile: dict, now: datetime) -> list[tup
     return blockers
 
 
-def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
+def rule_analysis(record: dict, profile: dict, now: datetime, personal: list[tuple[str, str]] = ()) -> dict:
+    """personal: (English, Hindi) names of the personalised sections this tender matches."""
     d = record.get("detail") or {}
     text = " ".join(
         str(x) for x in (record.get("title"), d.get("description"), d.get("product_category"),
@@ -256,6 +277,10 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
         flags.append("offline payment")
 
     blockers = feasibility_blockers(record, profile, now)
+    if personal:
+        large = [b for b in blockers if b[0].startswith("too large")]
+        blockers = [b for b in blockers if b not in large]
+        flags += ["large contract: needs capital for machines/staff/stock" for _ in large[:1]]
     cost = upfront_cost(d) if d else None
     max_value = profile.get("max_value_inr") or 0
     if blockers:
@@ -264,7 +289,8 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
         relevance = (40 + 15 * min(len(hits), 2) + (20 if loc_hit else -10 if locations else 0)
                      + (10 if work_type == "Rate Contract" else 0)
                      + (10 if cost is not None and cost <= 2000 else 0)
-                     - (15 if max_value and (d.get("tender_value") or 0) > max_value else 0))
+                     - (15 if max_value and (d.get("tender_value") or 0) > max_value else 0)
+                     + (15 if personal else 0))
         relevance = max(0, min(100, relevance))
     decision = "worth_reading" if relevance >= 70 else "maybe" if relevance >= 45 else "skip"
     base = profile.get("base_location", "")
@@ -273,6 +299,8 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
         reason_hi = "अभी संभव नहीं: " + "; ".join(hi for _, hi in blockers)
     else:
         parts = [
+            ("personalised: " + ", ".join(en for en, _ in personal),
+             "व्यक्तिगत: " + ", ".join(hi for _, hi in personal)) if personal else None,
             ("in " + base, base + " में") if loc_hit else None,
             ("matches " + ", ".join(hits), "रुचि से मेल: " + ", ".join(hits)) if hits else None,
             ("rate contract", "दर अनुबंध (रेट कॉन्ट्रैक्ट)") if work_type == "Rate Contract" else None,
@@ -387,7 +415,8 @@ def parse_llm_json(content: str) -> list[dict]:
     return results if isinstance(results, list) else []
 
 
-def _validate(item: dict, now: datetime, model: str, full_details: bool = True) -> dict:
+def _validate(item: dict, now: datetime, model: str, full_details: bool = True,
+              section_ids: tuple[str, ...] = ()) -> dict:
     decision = str(item.get("decision", "maybe")).strip().lower().replace(" ", "_")
     sector = item.get("sector") if item.get("sector") in SECTORS else "Other"
     work_type = item.get("work_type") if item.get("work_type") in WORK_TYPES else "Other"
@@ -418,6 +447,7 @@ def _validate(item: dict, now: datetime, model: str, full_details: bool = True) 
         "risk_flags": str_list(item.get("risk_flags"), 6),
         "key_requirements": str_list(item.get("key_requirements"), 3),
         "tags": str_list(item.get("tags"), 5),
+        "personal_sections": [s for s in str_list(item.get("personal_sections"), 5) if s in section_ids],
         "source": "llm",
         "prompt_version": PROMPT_VERSION,
         "basis": "full" if full_details else "listing",
@@ -436,12 +466,33 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
             family_sizes[r.get("family")] = family_sizes.get(r.get("family"), 0) + 1
     for r in tenders.values():
         r["lots_in_group"] = family_sizes.get(r.get("family"), 1) - 1 or None
+    sections = cfg.get("personalised") or []
+    names = {s["id"]: (s["name_en"], s.get("name_hi") or s["name_en"]) for s in sections}
+    matchers = section_matchers(sections)
+    rule_sections = {
+        r["tender_id"]: match_sections(r, matchers) for r in tenders.values() if r.get("status") == "active"
+    }
     pending = [r for r in tenders.values() if r.get("status") == "active" and not _llm_current(r)]
     pending.sort(key=lambda r: (r.get("first_seen", ""), r.get("closing") or ""), reverse=True)
 
     for record in pending:
-        record["analysis"] = rule_analysis(record, profile, now)
+        personal = [names[s] for s in rule_sections[record["tender_id"]]]
+        record["analysis"] = rule_analysis(record, profile, now, personal)
         stats["rules"] += 1
+    _analyse_llm(tenders, cfg, now, pending, stats, sections)
+    for tid, ids in rule_sections.items():
+        llm_ids = (tenders[tid].get("analysis") or {}).get("personal_sections") or []
+        tenders[tid]["personal"] = sorted(set(ids) | set(llm_ids))
+    stats["personalised"] = {
+        sid: sum(sid in (tenders[t].get("personal") or []) for t in rule_sections) for sid in names
+    }
+    return stats
+
+
+def _analyse_llm(tenders: dict, cfg: dict, now: datetime, pending: list[dict], stats: dict,
+                 sections: list[dict]) -> dict:
+    profile = cfg["profile"]
+    section_ids = tuple(s["id"] for s in sections)
 
     clients = llm_clients(cfg)
     if not clients:
@@ -452,6 +503,9 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
 
     batch_size = cfg["llm"].get("batch_size", 8)
     system = SYSTEM_PROMPT + "\n\nREADER PROFILE:\n" + profile_text(profile)
+    if sections:
+        system += ("\n\nPERSONALISED SECTIONS (the owner follows these closely; a tender in one of them "
+                   "deserves a higher relevance if feasible):\n" + sections_text(sections))
     client = clients.pop(0)
     consecutive_failures = 0
     stats["models"] = {}
@@ -487,7 +541,7 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
         for item in results:
             record = by_id.get(str(item.get("tender_id", "")).strip())
             if record is not None:
-                record["analysis"] = _validate(item, now, label, bool(record.get("detail")))
+                record["analysis"] = _validate(item, now, label, bool(record.get("detail")), section_ids)
                 stats["llm"] += 1
                 stats["models"][label] = stats["models"].get(label, 0) + 1
         stats["model"] = label

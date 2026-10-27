@@ -1,5 +1,5 @@
 const PAGE = 40;
-const state = { data: null, tab: "new", shown: PAGE, latestDay: "", lang: localStorage.getItem("lang") === "hi" ? "hi" : "en" };
+const state = { data: null, tab: "new", section: "", shown: PAGE, latestDay: "", lang: localStorage.getItem("lang") === "hi" ? "hi" : "en" };
 const $ = (id) => document.getElementById(id);
 
 const I18N = {
@@ -34,6 +34,8 @@ const I18N = {
     b_cash: "Cash to bid", b_deadline: "Deadline", b_days: "{n} days left", b_open: "Open details",
     b_tips: "Tips for this week", b_by_ai: "Written by AI ({m})", b_template: "Template briefing — add a free AI key for written advice",
     b_none: "No suitable tenders open right now.", b_of: "{n} feasible tenders considered",
+    tab_personal: "Personalised", b_personal: "Your personalised sections", b_open_new: "{o} open · {n} new today",
+    see_all: "See all", no_sections: "No personalised sections configured (config/settings.yaml → personalised).",
   },
   hi: {
     updated: "अपडेट", source: "स्रोत", tab_new: "आज नए", tab_worth: "पढ़ने योग्य", tab_closing: "3 दिन में बंद",
@@ -65,6 +67,8 @@ const I18N = {
     b_deadline: "अंतिम तिथि", b_days: "{n} दिन शेष", b_open: "विवरण देखें", b_tips: "इस सप्ताह के सुझाव",
     b_by_ai: "एआई द्वारा लिखित ({m})", b_template: "टेम्पलेट सलाह — लिखित सलाह के लिए मुफ़्त एआई कुंजी जोड़ें",
     b_none: "अभी कोई उपयुक्त टेंडर खुला नहीं है।", b_of: "{n} संभव टेंडरों पर विचार किया गया",
+    tab_personal: "व्यक्तिगत", b_personal: "आपके व्यक्तिगत अनुभाग", b_open_new: "{o} खुले · आज {n} नए",
+    see_all: "सभी देखें", no_sections: "कोई व्यक्तिगत अनुभाग सेट नहीं है (config/settings.yaml → personalised)।",
   },
 };
 function T(key, vars = {}) {
@@ -135,6 +139,7 @@ function inTab(t, tab) {
   switch (tab) {
     case "new": return t.status === "active" && isNew(t);
     case "worth": return t.status === "active" && t.analysis?.decision === "worth_reading";
+    case "personal": return t.status === "active" && (state.section ? (t.personal || []).includes(state.section) : t.personal?.length > 0);
     case "closing": return t.status === "active" && dl != null && dl >= 0 && dl <= 3;
     case "updated": return t.status === "active" && t.changes?.length > 0;
     case "closed": return t.status !== "active";
@@ -181,6 +186,7 @@ function card(t) {
   if (isUpdated(t)) badges.push(`<span class="badge upd">${T("badge_upd")}</span>`);
   if (t.status === "active" && dl != null && dl <= 3) badges.push(`<span class="badge urgent">${dl < 1 ? T("closes_today") : T("closes_in", { n: Math.ceil(dl) })}</span>`);
   if (t.status !== "active") badges.push(`<span class="badge">${esc(t.status)}</span>`);
+  (t.personal || []).forEach((id) => badges.push(`<span class="badge personal">★ ${esc(sectionName(id))}</span>`));
   if (a.sector) badges.push(`<span class="badge">${esc(a.sector)}</span>`);
   if (a.work_type) badges.push(`<span class="badge">${esc(a.work_type)}</span>`);
   (a.risk_flags || []).slice(0, 3).forEach((f) => badges.push(`<span class="badge flag">${esc(f)}</span>`));
@@ -196,6 +202,30 @@ function card(t) {
     </div>
     ${a.summary && a.source === "llm" ? `<p class="summary">${esc(pickLang(a.summary, a.summary_hi))}</p>` : ""}
   </article>`;
+}
+
+function sectionName(id) {
+  const s = (state.data.personalised || []).find((x) => x.id === id);
+  return s ? pickLang(s.name_en, s.name_hi) : id;
+}
+
+function renderSections() {
+  const box = $("sections");
+  const sections = state.data.personalised || [];
+  box.hidden = state.tab !== "personal";
+  if (box.hidden) return;
+  if (!sections.length) { box.innerHTML = `<p class="meta">${T("no_sections")}</p>`; return; }
+  if (!sections.some((s) => s.id === state.section)) state.section = sections[0].id;
+  box.innerHTML = sections.map((s) => {
+    const n = state.data.tenders.filter((t) => t.status === "active" && (t.personal || []).includes(s.id)).length;
+    return `<button data-section="${esc(s.id)}" class="${s.id === state.section ? "active" : ""}">★ ${esc(pickLang(s.name_en, s.name_hi))} <span class="n">${n}</span></button>`;
+  }).join("");
+}
+
+function openSection(id) {
+  state.tab = "personal"; state.section = id; state.shown = PAGE;
+  render();
+  $("tabs").scrollIntoView?.({ behavior: "smooth" });
 }
 
 function renderBriefing() {
@@ -223,10 +253,22 @@ function renderBriefing() {
       </div>
     </article>`).join("");
   const advice = state.lang === "hi" && b.advice_hi?.length ? b.advice_hi : b.advice_en;
+  const personal = (b.personal || []).map((s) => `
+    <div class="psec">
+      <h4>★ ${esc(pickLang(s.name_en, s.name_hi))} <span class="meta">${T("b_open_new", { o: s.open, n: s.new })}</span>
+        <button class="link" data-section="${esc(s.id)}">${T("see_all")} →</button></h4>
+      <ul>${(s.top || []).map((p) => {
+        const bl = state.lang === "hi" && p.blockers_hi?.length ? p.blockers_hi : p.blockers;
+        return `<li><a href="?id=${encodeURIComponent(p.tender_id)}" data-id="${esc(p.tender_id)}">${esc(p.title)}</a>
+          <span class="meta">${esc(p.location || "")} · ${inr(p.value)} · ${T("b_deadline")}: ${fmtDate(p.closing)}${p.cash_to_bid != null ? ` · ${T("b_cash")}: ₹${Number(p.cash_to_bid).toLocaleString("en-IN")}` : ""}</span>
+          ${bl?.length ? `<span class="blk">⚠ ${esc(bl.join("; "))}</span>` : ""}</li>`;
+      }).join("")}</ul>
+    </div>`).join("");
   box.innerHTML = `
     <h2>${T("b_title")}</h2>
     ${L(b, "headline") ? `<p class="headline">${esc(L(b, "headline"))}</p>` : ""}
     ${picks || `<p>${T("b_none")}</p>`}
+    ${personal ? `<div class="box"><h4>${T("b_personal")}</h4>${personal}</div>` : ""}
     ${advice?.length ? `<div class="box"><h4>${T("b_tips")}</h4>${list(advice)}</div>` : ""}
     <p class="meta">${b.source === "llm" ? T("b_by_ai", { m: esc(b.model || "") }) : T("b_template")} · ${T("b_of", { n: b.candidates ?? 0 })} · ${fmtDate(b.generated_at)}</p>`;
   box.hidden = false;
@@ -241,8 +283,11 @@ function applyLang() {
 
 function render() {
   const all = state.data.tenders;
+  renderSections();
   document.querySelectorAll("#tabs button").forEach((b) => {
-    const n = all.filter((t) => inTab(t, b.dataset.tab)).length;
+    const n = b.dataset.tab === "personal"
+      ? all.filter((t) => t.status === "active" && t.personal?.length).length
+      : all.filter((t) => inTab(t, b.dataset.tab)).length;
     b.innerHTML = esc(T(b.dataset.i18n)) + ` <span class="n">${n}</span>`;
     b.classList.toggle("active", b.dataset.tab === state.tab);
   });
@@ -358,8 +403,16 @@ async function init() {
   });
   $("briefing").addEventListener("click", (e) => {
     const a = e.target.closest("a[data-id]");
-    if (a) { e.preventDefault(); showDetail(a.dataset.id); }
+    if (a) { e.preventDefault(); showDetail(a.dataset.id); return; }
+    const s = e.target.closest("button[data-section]");
+    if (s) openSection(s.dataset.section);
   });
+  $("sections").addEventListener("click", (e) => {
+    const s = e.target.closest("button[data-section]");
+    if (s) { state.section = s.dataset.section; state.shown = PAGE; render(); }
+  });
+  const params = new URLSearchParams(location.search);
+  if (params.get("section")) { state.tab = "personal"; state.section = params.get("section"); }
 
   $("tabs").addEventListener("click", (e) => {
     const b = e.target.closest("button");
