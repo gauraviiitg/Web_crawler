@@ -212,6 +212,16 @@ def test_gem_row_and_source_separation(tmp_path):
     assert rule_analysis({**record, "detail": ldetail}, NEWCO, datetime(2026, 10, 27))["blockers"]
 
 
+def test_gem_snapshot_roundtrip(tmp_path):
+    from crawler.gem import load_snapshot, save_snapshot
+
+    path = tmp_path / "gem.json"
+    save_snapshot(path, [({**GEM_DOC, "extra": [1]}, ["Jaipur"])], {"listed": 1, "complete": True}, "2026-10-27T08:00")
+    bids, stats = load_snapshot(path, datetime(2026, 10, 27, 9), 36)
+    assert bids[0][1] == ["Jaipur"] and "extra" not in bids[0][0] and stats["fetched_at"] == "2026-10-27T08:00"
+    assert load_snapshot(path, datetime(2026, 10, 29, 9), 36) is None
+
+
 def test_districts():
     assert districts_for({"location": "ADA, Ajmer"}) == ["Ajmer"]
     assert districts_for({"location": "Dholpur and Bharatpur"}) == ["Bharatpur", "Dholpur"]

@@ -12,6 +12,8 @@ import json
 import logging
 import re
 import time
+from datetime import datetime
+from pathlib import Path
 
 import requests
 
@@ -54,10 +56,10 @@ class GemClient:
 
     def _post(self, path: str, data: dict) -> str:
         for attempt in range(3):
-            if not self.token:
-                self._refresh()
             time.sleep(self.delay)
             try:
+                if not self.token:
+                    self._refresh()
                 r = self.session.post(f"{BASE}/{path}", data={**data, "csrf_bd_gem_nk": self.token}, timeout=self.timeout)
                 self.request_count += 1
                 if r.status_code == 200 or (r.status_code == 404 and '"No data found"' in r.text):
@@ -111,6 +113,34 @@ class GemClient:
         stats["state_total"] = total
         stats["complete"] = len(by_id) >= 0.97 * total
         return [(doc, sorted(cities)) for doc, cities in by_id.values()], stats
+
+
+SNAPSHOT_KEYS = (
+    "b_id", "b_bid_number", "b_category_name", "bd_category_name", "b_total_quantity", "b_status", "b_bid_type",
+    "is_rc_bid", "ba_is_limited_tendering", "ba_is_global_tendering", "final_start_date_sort",
+    "final_end_date_sort", "ba_official_details_minName", "ba_official_details_deptName",
+)
+
+
+def save_snapshot(path: Path, bids: list[tuple[dict, list[str]]], stats: dict, fetched_at: str) -> None:
+    """GeM refuses connections from outside India, so bids are fetched on an Indian machine and committed."""
+    rows = [{"doc": {k: doc[k] for k in SNAPSHOT_KEYS if k in doc}, "cities": cities} for doc, cities in bids]
+    rows.sort(key=lambda r: str(first(r["doc"], "b_bid_number")))
+    payload = {"fetched_at": fetched_at, "stats": stats, "bids": rows}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+
+def load_snapshot(path: Path, now: datetime, max_age_hours: float) -> tuple[list[tuple[dict, list[str]]], dict] | None:
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    fetched = datetime.strptime(payload["fetched_at"], "%Y-%m-%dT%H:%M")
+    if (now - fetched).total_seconds() > max_age_hours * 3600:
+        log.warning("GeM snapshot from %s is older than %s hours; ignored", payload["fetched_at"], max_age_hours)
+        return None
+    stats = {**payload.get("stats", {}), "fetched_at": payload["fetched_at"], "from_snapshot": True}
+    return [(r["doc"], r["cities"]) for r in payload["bids"]], stats
 
 
 def to_row(doc: dict, cities: list[str]) -> tuple[ListingRow, dict]:

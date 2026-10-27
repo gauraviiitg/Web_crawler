@@ -41,8 +41,14 @@ profile:
   min_value_inr: 0
 
 # Government e-Marketplace (GeM BidPlus): open bids whose consignee is in this state.
+# GeM refuses connections from outside India (GitHub's cloud runners), so the bids are fetched
+# on the owner's PC by .github/workflows/gem.yml (self-hosted runner) into `snapshot`, and the
+# daily cloud run merges that file. live: true fetches directly instead (local runs in India).
 gem:
   enabled: true
+  live: false
+  snapshot: data/gem_bids.json
+  max_age_hours: 36
   state: RAJASTHAN
   request_delay_seconds: 0.5
   timeout_seconds: 60

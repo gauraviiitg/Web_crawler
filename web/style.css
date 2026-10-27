@@ -78,6 +78,7 @@ a.portal.small:hover { background: var(--brand); color: #fff; }
 .box.how { background: #f0f9ff; border-color: #b9e6fe; }
 .box.how ol { margin: 6px 0 8px 20px; padding: 0; }
 .box.how li { margin: 2px 0; }
+a.run { font-weight: 600; white-space: nowrap; }
 .badge.gem { background: #ecfdf3; color: #067647; border-color: #abefc6; font-weight: 700; }
 .badge.personal { background: #ecfdf3; color: #05603a; font-weight: 600; }
 .sections { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }

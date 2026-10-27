@@ -4,7 +4,8 @@ Usage:
   python -m crawler.main                 # full run
   python -m crawler.main --max-orgs 3    # quick test on the first 3 organisations
   python -m crawler.main --no-llm        # skip the LLM (rule-based analysis only)
-  python -m crawler.main --no-gem        # skip the GeM BidPlus crawl
+  python -m crawler.main --no-gem        # skip GeM
+  python -m crawler.main --gem-snapshot data/gem_bids.json   # only fetch GeM bids (needs an Indian IP)
 """
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ import yaml
 
 from .analyse import analyse_tenders
 from .briefing import build_briefing
-from .gem import GemClient
+from .gem import GemClient, load_snapshot, save_snapshot
 from .gem import first as gem_first
 from .gem import to_row as gem_row
 from .gepnic import GepnicClient, SessionExpired
@@ -89,7 +90,11 @@ def crawl(client: GepnicClient, store: Store, now_str: str, max_orgs: int | None
 
 def crawl_gem(client: GemClient, store: Store, now_str: str, state: str) -> dict:
     bids, stats = client.state_bids(state)
-    stats.update(new=0, updated=0, unchanged=0, cancelled=0)
+    return merge_gem(bids, stats, store, now_str, state)
+
+
+def merge_gem(bids: list, stats: dict, store: Store, now_str: str, state: str) -> dict:
+    stats = {**stats, "new": 0, "updated": 0, "unchanged": 0, "cancelled": 0}
     seen: set[str] = set()
     for doc, cities in bids:
         if gem_first(doc, "b_status") in (3, 5):
@@ -113,6 +118,7 @@ def main() -> int:
     parser.add_argument("--no-llm", action="store_true")
     parser.add_argument("--no-gem", action="store_true", help="skip the GeM BidPlus crawl")
     parser.add_argument("--only-gem", action="store_true", help="skip the eProc crawl (testing)")
+    parser.add_argument("--gem-snapshot", metavar="PATH", help="only fetch GeM bids and save them to PATH")
     parser.add_argument("--data", default=str(ROOT / "data" / "tenders.json"))
     args = parser.parse_args()
 
@@ -122,6 +128,14 @@ def main() -> int:
     now = datetime.now(IST).replace(tzinfo=None)
     now_str = now.strftime("%Y-%m-%dT%H:%M")
     started = time.time()
+    gem_cfg = cfg.get("gem") or {}
+    if args.gem_snapshot:
+        gem = GemClient(delay=gem_cfg.get("request_delay_seconds", 0.5), timeout=gem_cfg.get("timeout_seconds", 60))
+        bids, stats = gem.state_bids(gem_cfg.get("state", "RAJASTHAN"))
+        stats["requests"] = gem.request_count
+        save_snapshot(Path(args.gem_snapshot), bids, stats, now_str)
+        log.info("GeM snapshot: %d bids -> %s (%s)", len(bids), args.gem_snapshot, stats)
+        return 0 if stats["listed"] else 1
     store = Store(Path(args.data))
     portal = cfg["portal"]
     client = GepnicClient(portal["base_url"], delay=portal.get("request_delay_seconds", 0.5),
@@ -137,15 +151,22 @@ def main() -> int:
         run["error"] = f"{type(exc).__name__}: {exc}"[:500]
     run["requests"] = client.request_count
 
-    gem_cfg = cfg.get("gem") or {}
     if gem_cfg.get("enabled") and not args.no_gem:
-        gem = GemClient(delay=gem_cfg.get("request_delay_seconds", 0.5), timeout=gem_cfg.get("timeout_seconds", 60))
+        state = gem_cfg.get("state", "RAJASTHAN")
         try:
-            run["gem"] = crawl_gem(gem, store, now_str, gem_cfg.get("state", "RAJASTHAN"))
+            if gem_cfg.get("live"):
+                gem = GemClient(delay=gem_cfg.get("request_delay_seconds", 0.5), timeout=gem_cfg.get("timeout_seconds", 60))
+                run["gem"] = crawl_gem(gem, store, now_str, state)
+                run["gem"]["requests"] = gem.request_count
+            else:
+                snap = load_snapshot(ROOT / gem_cfg["snapshot"], now, gem_cfg.get("max_age_hours", 36))
+                run["gem"] = merge_gem(*snap, store, now_str, state) if snap else {
+                    "error": f"no fresh GeM snapshot ({gem_cfg['snapshot']}); run the 'GeM bids (this PC)' workflow"}
+                if not snap:
+                    store.expire(now_str, source="gem")
         except Exception as exc:  # GeM problems must not block the eProc report
-            log.exception("GeM crawl failed")
+            log.exception("GeM step failed")
             run["gem"] = {"error": f"{type(exc).__name__}: {exc}"[:500]}
-        run["gem"]["requests"] = gem.request_count
 
     if args.no_llm:
         cfg["llm"]["providers"] = []

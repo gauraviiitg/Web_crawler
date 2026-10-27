@@ -33,6 +33,12 @@ if "--gem" in sys.argv:
     gem = GemClient(delay=cfg["gem"].get("request_delay_seconds", 0.5))
     run["gem"] = crawl_gem(gem, store, now.strftime("%Y-%m-%dT%H:%M"), cfg["gem"]["state"])
     run["gem"]["requests"] = gem.request_count
+elif cfg.get("gem", {}).get("enabled"):
+    from crawler.gem import load_snapshot
+    from crawler.main import merge_gem
+    snap = load_snapshot(ROOT / cfg["gem"]["snapshot"], now, cfg["gem"].get("max_age_hours", 36))
+    if snap:
+        run["gem"] = merge_gem(*snap, store, now.strftime("%Y-%m-%dT%H:%M"), cfg["gem"]["state"])
 run["analysis"] = analyse_tenders(store.tenders, cfg, now)
 briefing = build_briefing(store.tenders, cfg, now)
 build_site(store, cfg, run, now, ROOT, briefing)

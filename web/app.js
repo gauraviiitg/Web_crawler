@@ -20,6 +20,7 @@ const I18N = {
     gem_step1: "Click \"Open bid PDF\": the full GeM bid document (items, quantity, EMD, eligibility, MSE/startup relaxations) opens directly — no login or captcha.",
     gem_step2: "To bid, register as a seller on gem.gov.in (free: PAN, Aadhaar, Udyam, bank account) and complete your vendor assessment for the product category.",
     gem_step3: "In the GeM seller dashboard, open Bids and search the bid number {id}.",
+    gem_refresh: "↻ Refresh GeM", gem_fetched: "bids fetched {t}", gem_missing: "not fetched — PC offline?",
     b_rules: "Picked by keyword rules", quantity: "Quantity", ministry: "Ministry", department: "Department", limited_tender: "Limited tender",
     lang_toggle: "हिंदी", st_active: "Active tenders", st_new: "New today", st_worth: "Worth reading",
     st_closing: "Closing in 3 days", st_value: "Total disclosed value", not_disclosed: "Not disclosed",
@@ -66,6 +67,7 @@ const I18N = {
     gem_step1: "\"बोली PDF खोलें\" पर क्लिक करें: GeM बोली का पूरा दस्तावेज़ (सामान, मात्रा, ईएमडी, पात्रता, एमएसई/स्टार्टअप छूट) सीधे खुलेगा — लॉगिन या कैप्चा नहीं।",
     gem_step2: "बोली लगाने के लिए gem.gov.in पर विक्रेता के रूप में पंजीकरण करें (मुफ़्त: पैन, आधार, उद्यम, बैंक खाता) और उत्पाद श्रेणी का वेंडर असेसमेंट पूरा करें।",
     gem_step3: "GeM विक्रेता डैशबोर्ड में Bids खोलें और बोली संख्या {id} खोजें।",
+    gem_refresh: "↻ GeM रीफ़्रेश करें", gem_fetched: "बोलियाँ {t} को ली गईं", gem_missing: "नहीं ली गईं — पीसी बंद?",
     b_rules: "कीवर्ड नियमों से चयनित", quantity: "मात्रा", ministry: "मंत्रालय", department: "विभाग", limited_tender: "सीमित निविदा",
     lang_toggle: "English", st_active: "सक्रिय टेंडर", st_new: "आज नए", st_worth: "पढ़ने योग्य", st_closing: "3 दिन में बंद",
     st_value: "कुल घोषित मूल्य", not_disclosed: "घोषित नहीं", badge_new: "नया", badge_upd: "संशोधित",
@@ -476,6 +478,8 @@ function renderHeader() {
   const run = d.run || {};
   const an = run.analysis || {};
   $("runinfo").textContent = d.llm_enabled && an.llm_pending ? T("llm_pending", { n: an.llm_pending }) : "";
+  const gem = run.gem || {};
+  $("geminfo").textContent = gem.fetched_at ? T("gem_fetched", { t: fmtDate(gem.fetched_at) }) : gem.error ? T("gem_missing") : "";
   const active = d.tenders.filter((t) => t.status === "active");
   const stat = (n, label) => `<div class="stat"><b>${n}</b><span>${label}</span></div>`;
   $("stats").innerHTML = [

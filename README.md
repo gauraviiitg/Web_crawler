@@ -15,7 +15,12 @@ and publishes the report on GitHub Pages.
    tender's detail page in the same session.
 2. `crawler/gem.py` reads GeM's public advance search by consignee location (state
    `RAJASTHAN`, then each consignee city, which gives the district). Each GeM bid links to its
-   public bid PDF (`/showbidDocument/<id>`, no login or captcha).
+   public bid PDF (`/showbidDocument/<id>`, no login or captcha). GeM refuses connections
+   from GitHub's cloud runners, so `.github/workflows/gem.yml` runs on the owner's PC
+   (self-hosted runner, label `gem`, started at logon by a Windows scheduled task) at 08:00 IST
+   or from the site's "↻ Refresh GeM" button. It commits `data/gem_bids.json` and starts the
+   daily job, which merges the snapshot if it is less than 36 hours old. If the PC is off, the
+   run waits until it is back online.
 3. `crawler/store.py` de-duplicates by Tender ID (e.g. `2026_CEPWD_604884_4`) or GeM bid
    number (e.g. `GEM/2026/B/8123892`); each record keeps its `source` so one portal's crawl
    never closes the other's tenders. Changes (corrigenda) are recorded.
