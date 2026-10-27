@@ -114,3 +114,25 @@ def test_rule_analysis_and_validation():
 
     v = _validate({"decision": "Worth Reading", "relevance": "180", "sector": "Bogus"}, datetime(2026, 10, 27), "m")
     assert v["decision"] == "worth_reading" and v["relevance"] == 100 and v["sector"] == "Other"
+    assert v["upfront_cost_inr"] is None and v["blockers"] == []
+
+
+def test_new_company_feasibility():
+    now = datetime(2026, 10, 27, 9)
+    profile = {"experience_years": 0, "min_days_left": 5, "max_value_inr": 2500000,
+               "interests": ["stationery"], "locations": ["Jaipur"]}
+    goods = {"tender_category": "Goods", "tenderer_class": "ALL", "tender_value": 1800000,
+             "emd": 36000, "emd_percentage": "2.00", "emd_exemption": "Yes", "tender_fee": 590,
+             "processing_fee": 500, "fee_exemption": "No", "location": "Jaipur"}
+    stationery = {"tender_id": "2026_DLB_1_1", "title": "Rate contract for stationery items",
+                  "closing": "2026-11-02T13:00", "detail": goods}
+    a = rule_analysis(stationery, profile, now)
+    assert a["decision"] == "worth_reading" and a["blockers"] == []
+    assert a["upfront_cost_inr"] == 795
+
+    works = dict(stationery, detail=dict(goods, tender_category="Works", tenderer_class="Class C"))
+    a = rule_analysis(works, profile, now)
+    assert a["decision"] == "skip" and len(a["blockers"]) == 2
+
+    drugs = dict(stationery, title="Supply of drugs and medicines")
+    assert rule_analysis(drugs, profile, now)["decision"] == "skip"

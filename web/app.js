@@ -152,6 +152,8 @@ function showDetail(id) {
       <h4>${a.source === "llm" ? "AI analysis" : "Rule-based analysis (AI analysis pending)"}</h4>
       ${a.summary ? `<p>${esc(a.summary)}</p>` : ""}
       ${a.reason ? `<p><b>Why:</b> ${esc(a.reason)}</p>` : ""}
+      ${a.upfront_cost_inr != null ? `<p><b>Cash to bid (startup/MSE, excl. stock):</b> ₹${Number(a.upfront_cost_inr).toLocaleString("en-IN")}</p>` : ""}
+      ${a.blockers?.length ? `<b>Blockers</b>${list(a.blockers)}` : ""}
       ${a.key_requirements?.length ? `<b>Key requirements</b>${list(a.key_requirements)}` : ""}
       ${a.risk_flags?.length ? `<b>Risk flags</b>${list(a.risk_flags)}` : ""}
       ${a.model ? `<p class="meta">Model: ${esc(a.model)} · ${fmtDate(a.analysed_at)}${a.basis === "listing" ? " · based on listing only" : ""}</p>` : ""}

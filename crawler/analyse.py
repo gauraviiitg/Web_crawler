@@ -48,22 +48,58 @@ SECTOR_KEYWORDS = {
 }
 
 SYSTEM_PROMPT = """You are an expert analyst of Indian government tenders (Rajasthan eProcurement).
-For each tender you receive, classify it and decide whether the reader should open the
-tender documents, based on the reader profile. Be concrete and brief. Answer ONLY with JSON:
+For each tender, decide whether THIS reader can realistically bid and win, given the reader
+profile. Judge feasibility first, interest second. Be concrete and brief.
+
+Rajasthan rules to apply (RTPP Act 2012 / Rules 2013 and state notifications):
+- Works (civil/electrical construction) need contractor registration of the stated
+  tenderer class (D/C/B/A/AA); a new company cannot have it -> skip unless class is ALL
+  and the job is really a supply.
+- Startups registered with iStart Rajasthan get relaxation in prior experience and prior
+  turnover and exemption from bid security (EMD) for GOODS and SERVICES up to Rs 1 crore,
+  when the tender says "EMD exemption allowed: Yes".
+- Micro & small enterprises of Rajasthan (Udyam) pay 50%% of the tender document fee,
+  bid security 0.5%% instead of 2%%, and performance security 1%% for supply of goods.
+- Processing fee (RISL) is never exempt; tender fee only if "fee exemption allowed: Yes".
+- Items that need a licence or authorisation are hard for a new company: drugs and medicines
+  (drug licence), medical/lab equipment and reagents (OEM authorisation), electrical
+  equipment for discoms/power plants (approved vendor lists, type tests), manpower supply
+  (labour licence, EPF/ESI), security (PSARA licence).
+- Rate contracts (supply on demand over a year) need little upfront stock; one-shot supplies
+  with short delivery need the bidder to fund all stock until payment (30-90 days).
+- At least 5 days are needed to obtain a Class 3 DSC, enrol on the portal and prepare a bid.
+
+Answer ONLY with JSON:
 {"results": [{
   "tender_id": "<copy exactly>",
   "summary": "<plain-English summary, max 35 words: what, where, for whom>",
   "sector": "<one of SECTORS>",
   "work_type": "<one of WORK_TYPES>",
   "decision": "worth_reading | maybe | skip",
-  "relevance": <integer 0-100 for the reader profile>,
-  "reason": "<max 25 words: why this decision>",
-  "risk_flags": ["<short flags e.g. 'closes in 2 days', 'high EMD', 'value not disclosed', 'vague scope', 'offline payment', 'one lot of many'>"],
+  "relevance": <integer 0-100: how good a first tender this is for the reader>,
+  "reason": "<max 30 words: why this decision, citing the deciding rule>",
+  "upfront_cost_inr": <integer estimate of cash needed to submit the bid as an iStart startup / Udyam MSE (fees + any EMD), excluding stock>,
+  "blockers": ["<max 3 things the reader probably lacks, e.g. 'contractor class C registration', 'drug licence', 'OEM authorisation', 'past supply orders'>"],
+  "risk_flags": ["<short flags e.g. 'closes in 2 days', 'high EMD', 'value not disclosed', 'vague scope', 'stock funding needed', 'one lot of many'>"],
   "key_requirements": ["<max 3 short items the bidder must have/do, from the data given>"],
   "tags": ["<max 5 short keywords>"]
 }]}
 SECTORS: %s
 WORK_TYPES: %s""" % (", ".join(SECTORS), ", ".join(WORK_TYPES))
+
+LICENSED_RE = re.compile(
+    r"drug|medicine|pharma|surgical|suture|reagent|kit|implant|graft|x-ray|radiograph|anesthesia|"
+    r"laborator|lab items|blood bag|transformer|surge arrester|kv |switchyard|insulator|meter|"
+    r"manpower|man power|placement agenc|security guard|scada|spares? for|bearing|ball tube mill|"
+    r"tester|injection set|test set|hospital use|dental|medical|machine|installation|commissioning|"
+    r"refrigerant|fire extinguisher|ghee|food grade|fuses|sensors|energy audit|rent out|leasing",
+    re.I,
+)
+WORKS_RE = re.compile(
+    r"construction|renovation|conversion of|repair|civil work|beautification|handling and transport|"
+    r"transportation work|laying|boring",
+    re.I,
+)
 
 
 def _days_left(closing: str | None, now: datetime) -> float | None:
@@ -92,7 +128,11 @@ def tender_prompt_view(record: dict, now: datetime) -> dict:
         "contract_form": d.get("form_of_contract"),
         "value_inr": d.get("tender_value"),
         "emd_inr": d.get("emd"),
-        "fee_inr": d.get("tender_fee"),
+        "emd_percentage": d.get("emd_percentage"),
+        "emd_exemption_allowed": d.get("emd_exemption"),
+        "tender_fee_inr": d.get("tender_fee"),
+        "processing_fee_inr": d.get("processing_fee"),
+        "fee_exemption_allowed": d.get("fee_exemption"),
         "location": d.get("location"),
         "period_days": d.get("period_of_work_days"),
         "pre_qualification": (d.get("pre_qualification") or "")[:300],
@@ -111,11 +151,59 @@ def profile_text(profile: dict) -> str:
         parts.append("Interests: " + ", ".join(profile["interests"]))
     if profile.get("locations"):
         parts.append("Preferred locations: " + ", ".join(profile["locations"]))
+    if profile.get("base_location"):
+        parts.append(f"Based in: {profile['base_location']}")
+    if "experience_years" in profile:
+        parts.append(f"Past government contract experience: {profile['experience_years']} years")
+    if "budget_inr" in profile:
+        parts.append(f"Cash available before first payment: Rs {profile['budget_inr']:,}")
     if profile.get("min_value_inr"):
         parts.append(f"Minimum tender value: Rs {profile['min_value_inr']:,}")
     if profile.get("max_value_inr"):
-        parts.append(f"Maximum tender value: Rs {profile['max_value_inr']:,}")
+        parts.append(f"Preferred maximum tender value: Rs {profile['max_value_inr']:,}")
+    if profile.get("min_days_left"):
+        parts.append(f"Needs at least {profile['min_days_left']} days before the bid deadline")
     return "\n".join(p for p in parts if p)
+
+
+def upfront_cost(d: dict, startup: bool = True) -> float:
+    """Cash to submit a bid as an iStart startup (EMD exempt) / Udyam MSE (50% fee, 0.5% EMD)."""
+    fee = 0 if (d.get("fee_exemption") or "").lower() == "yes" else (d.get("tender_fee") or 0) / 2
+    emd = d.get("emd") or 0
+    if startup and (d.get("emd_exemption") or "").lower() == "yes":
+        emd = 0
+    elif emd and (d.get("emd_percentage") or "").startswith("2"):
+        emd = emd / 4
+    return round(fee + (d.get("processing_fee") or 0) + emd)
+
+
+def feasibility_blockers(record: dict, profile: dict, now: datetime) -> list[str]:
+    """Hard reasons a new, zero-experience company cannot bid (empty list = feasible)."""
+    d = record.get("detail") or {}
+    if profile.get("experience_years", 1) > 0:
+        return []
+    blockers = []
+    category = (d.get("tender_category") or "").lower()
+    tclass = (d.get("tenderer_class") or "ALL").upper()
+    text = " ".join(str(x) for x in (record.get("title"), d.get("description"), d.get("product_category"),
+                                     d.get("sub_category")) if x)
+    if category == "works" or WORKS_RE.search(text):
+        blockers.append("works / labour contract (needs contractor registration or fleet)")
+    if tclass not in ("ALL", ""):
+        blockers.append(f"needs {d.get('tenderer_class')} registration")
+    value = d.get("tender_value") or 0
+    if value > 1e7:
+        blockers.append("above Rs 1 crore (no startup relaxation)")
+    elif profile.get("max_value_inr") and value > 2 * profile["max_value_inr"]:
+        blockers.append("too large for a first order (stock funding)")
+    if LICENSED_RE.search(text):
+        blockers.append("licence / OEM authorisation likely needed")
+    if d and upfront_cost(d) > profile.get("max_upfront_inr", float("inf")):
+        blockers.append(f"about Rs {upfront_cost(d):,} cash needed to bid")
+    days = _days_left(record.get("closing"), now)
+    if days is not None and days < profile.get("min_days_left", 0):
+        blockers.append(f"only {max(days, 0):.0f} days left")
+    return blockers
 
 
 def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
@@ -140,7 +228,8 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
         i for i in interests
         if any(re.search(rf"\b{re.escape(w)}", text) for w in i.split() if len(w) > 3 and w not in GENERIC_WORDS)
     ]
-    loc_hit = any(l in text or l in (d.get("location") or "").lower() for l in locations)
+    place = f"{d.get('location') or ''} {d.get('authority_address') or ''}".lower()
+    loc_hit = any(l in place for l in locations)
     days = _days_left(record.get("closing"), now)
     flags = []
     if days is not None and days < 3:
@@ -154,11 +243,27 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
     if (d.get("payment_mode") or "").lower() == "offline":
         flags.append("offline payment")
 
-    relevance = (30 * min(len(hits), 2) + (20 if loc_hit else 0) + (10 if d.get("tender_value") else 0)
-                 + (10 if days is not None and days >= 5 else 0))
-    if days is not None and days < 1:
-        relevance = max(0, relevance - 30)
-    decision = "worth_reading" if hits and relevance >= 70 else "maybe" if hits and relevance >= 40 else "skip"
+    blockers = feasibility_blockers(record, profile, now)
+    cost = upfront_cost(d) if d else None
+    max_value = profile.get("max_value_inr") or 0
+    if blockers:
+        relevance = 0
+    else:
+        relevance = (40 + 15 * min(len(hits), 2) + (20 if loc_hit else -10 if locations else 0)
+                     + (10 if work_type == "Rate Contract" else 0)
+                     + (10 if cost is not None and cost <= 2000 else 0)
+                     - (15 if max_value and (d.get("tender_value") or 0) > max_value else 0))
+        relevance = max(0, min(100, relevance))
+    decision = "worth_reading" if relevance >= 70 else "maybe" if relevance >= 45 else "skip"
+    if blockers:
+        reason = "Not feasible yet: " + "; ".join(blockers)
+    else:
+        reason = ", ".join(filter(None, [
+            "in " + profile.get("base_location", "") if loc_hit else "",
+            "matches " + ", ".join(hits) if hits else "",
+            "rate contract" if work_type == "Rate Contract" else "",
+            f"upfront about Rs {cost:,}" if cost is not None else "",
+        ])) or "goods/services open to all bidders"
     title = record.get("title") or d.get("title") or ""
     return {
         "summary": title[:200],
@@ -166,7 +271,9 @@ def rule_analysis(record: dict, profile: dict, now: datetime) -> dict:
         "work_type": work_type,
         "decision": decision,
         "relevance": relevance,
-        "reason": ("Matches: " + ", ".join(hits)) if hits else "No profile keyword match (rule-based)",
+        "reason": reason[:300],
+        "upfront_cost_inr": cost,
+        "blockers": blockers[:3],
         "risk_flags": flags,
         "key_requirements": [],
         "tags": hits[:5],
@@ -273,6 +380,11 @@ def _validate(item: dict, now: datetime, model: str, full_details: bool = True) 
     def str_list(value, limit):
         return [str(v)[:80] for v in value][:limit] if isinstance(value, list) else []
 
+    try:
+        cost = max(0, int(float(item.get("upfront_cost_inr"))))
+    except (TypeError, ValueError):
+        cost = None
+
     return {
         "summary": str(item.get("summary", ""))[:400],
         "sector": sector,
@@ -280,6 +392,8 @@ def _validate(item: dict, now: datetime, model: str, full_details: bool = True) 
         "decision": decision if decision in DECISIONS else "maybe",
         "relevance": relevance,
         "reason": str(item.get("reason", ""))[:300],
+        "upfront_cost_inr": cost,
+        "blockers": str_list(item.get("blockers"), 3),
         "risk_flags": str_list(item.get("risk_flags"), 6),
         "key_requirements": str_list(item.get("key_requirements"), 3),
         "tags": str_list(item.get("tags"), 5),

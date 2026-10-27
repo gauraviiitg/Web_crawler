@@ -11,28 +11,33 @@ portal:
 # Edit freely: describe what kind of tenders matter to you.
 profile:
   description: >
-    A contractor / supplier in Rajasthan looking for tenders worth bidding on.
-    Prefer tenders with a clear scope, a reasonable bid window (at least 5 days left),
-    an open tender type, and a disclosed tender value. Flag very large works that need
-    special class registration, very short deadlines, and re-tenders.
+    A brand-new company based in Jaipur with no past government contracts, no turnover
+    history and almost no cash. It wants its FIRST government order. It can register as an
+    MSE (Udyam) and as an iStart Rajasthan startup, and can buy goods from Jaipur wholesalers
+    or OEM dealers after winning (trading / supply model). It cannot do civil works (no PWD
+    contractor class registration), cannot hold licences such as drug licence or OEM dealership
+    yet, and cannot fund large stock, fleets or big labour teams up front.
+  # Hard limits used by both the LLM prompt and the keyword fallback.
+  base_location: Jaipur
+  experience_years: 0
+  budget_inr: 0            # cash available for fees/EMD/stock before the first payment
+  max_upfront_inr: 10000   # most fees + EMD that can be borrowed to submit one bid
+  max_value_inr: 2500000   # prefer first orders up to Rs 25 lakh (working capital risk)
+  min_days_left: 5         # time needed to get a DSC, enrol on the portal and prepare the bid
   interests:
-    - civil works
-    - roads
-    - buildings
-    - water supply and pipelines
-    - electrical works
-    - solar and power
-    - IT hardware and services
-    - medical equipment
+    - stationery
+    - office supplies
+    - canvas bags
+    - printing
+    - computer peripherals
+    - furniture
+    - housekeeping material
+    - uniforms
+    - sports goods
+    - miscellaneous goods
   locations:
     - Jaipur
-    - Jodhpur
-    - Udaipur
-    - Kota
-    - Ajmer
-    - Bikaner
   min_value_inr: 0
-  max_value_inr: 0   # 0 = no upper limit
 
 llm:
   # Free-tier, OpenAI-compatible providers, tried in order. A provider is used only if its

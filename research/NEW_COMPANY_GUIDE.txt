@@ -1,0 +1,150 @@
+FIRST GOVERNMENT TENDER FOR A NEW JAIPUR COMPANY (zero budget, zero experience)
+Snapshot of eproc.rajasthan.gov.in on 27-Oct-2026: 2,043 active tenders.
+Re-generate the ranking any day:  python research/rank_newco.py
+(The daily crawler and LLM now use the same profile, see config/settings.yaml.)
+
+==============================================================================
+1. THE SHORT ANSWER
+==============================================================================
+- Only GOODS and simple SERVICES tenders are realistic. Works (1,601 of 2,043) need a
+  PWD/department contractor class registration and experience certificates.
+- Within goods and services, choose:
+    * Jaipur office, so you can deliver and visit yourself
+    * value up to about Rs 25 lakh (below Rs 1 crore is the limit for startup relaxation)
+    * "EMD exemption allowed: Yes" and ideally "Tender fee exemption allowed: Yes"
+    * RATE CONTRACTS, where you supply on demand over a year (little stock up front)
+    * common items you can buy from a Jaipur wholesaler on credit: stationery, bags,
+      office items, printing, consumables
+    * at least 5 days left to the deadline
+- Avoid: drugs, medical and lab items, Discom or power-plant equipment, test instruments,
+  manpower supply, security, transport and handling, food and packaging for dairies,
+  anything with "installation and commissioning". All of these need licences, OEM
+  authorisation, approved-vendor status, fleets or large deposits.
+- Of 2,043 tenders, the filters leave 13 worth reading and 7 maybe. Six are in Jaipur
+  and are genuinely suitable (section 3).
+
+==============================================================================
+2. WHAT THE RULES GIVE A NEW COMPANY (Rajasthan)
+==============================================================================
+RTPP Act 2012 / RTPP Rules 2013 and Finance Department / iStart notifications:
+a) iStart-registered STARTUPS: relaxation of prior experience and prior turnover, and
+   exemption from bid security (EMD) for goods and services procurement up to Rs 1 crore.
+   Works are NOT covered. The tender must say "EMD exemption allowed: Yes" (1,798 of 2,043 do).
+   Eligibility (verify on istart.rajasthan.gov.in): Pvt Ltd / LLP / registered partnership,
+   registered office in Rajasthan, under 10 years old, turnover under Rs 100 crore.
+   A sole proprietorship does NOT qualify.
+b) Rajasthan MICRO & SMALL ENTERPRISES (Udyam registration, free, same day):
+   50% of the tender document fee, bid security 0.5% instead of 2%, performance
+   security 1% (goods), and purchase preference. Proprietorships qualify.
+c) QRate-rated startups (iStart Bronze or above) can get DIRECT work orders without
+   bidding (up to Rs 25 lakh per order, a few orders per year) from departments. This is the
+   strongest zero-experience route if your product or service has an innovation angle.
+d) The RISL processing fee (usually Rs 500) is never exempt and is paid on every bid.
+e) After you win: performance security (1% for MSE, otherwise up to 5%) and a signed
+   agreement. Payment usually comes 30-90 days after delivery and inspection.
+
+Important: the "Pre-qualification" field on the portal usually says "Please refer
+tender documents". The real experience and turnover clauses are in the NIT PDF, and those
+downloads need the portal captcha, so open them manually. If a clause asks for
+past orders or turnover, quote the startup relaxation (RTPP rule / iStart notification) in
+a clarification request or at the pre-bid meeting.
+
+==============================================================================
+3. SHORTLIST, JAIPUR, RANKED (deadlines from the live listing)
+==============================================================================
+#1 2026_DLB_604082_1  Jaipur Municipal Corporation: stationery, RATE CONTRACT
+   Value Rs 18 L | EMD Rs 36,000 (2%), exemption Yes | fee Rs 590 + Rs 500 processing
+   Closes 02-Nov-2026 13:00 | Dy. Commissioner (Store), Lal Kothi, Tonk Road
+   Why: everyday items, supply on demand, buy from Chaura Rasta wholesalers as orders
+   come. Cash to bid: about Rs 800 as startup, about Rs 9,800 as MSE only (0.5% EMD).
+
+#2 2026_RJPOL_604545_1  Police Commissionerate Jaipur: miscellaneous ("vivid") items
+   Value Rs 20 L | EMD Rs 40,000, exemption Yes | fee Rs 500 + Rs 500 | 365-day rate contract
+   Closes 03-Nov-2026 12:00 | DCP HQ
+   Why: rate contract of assorted general items. Check the BOQ list for anything licensed.
+
+#3 2026_RSMSB_604026_1  Rajasthan Staff Selection Board: canvas bags for office use
+   Value Rs 26 L | EMD Rs 13,000 (0.5%), exemption Yes | tender FEE EXEMPT, Rs 500 processing
+   Closes 02-Nov-2026 13:00 | RSSB, Durgapura
+   Why: cheapest to bid (Rs 500 as startup). Risk: one-shot supply, so you must fund
+   about Rs 20+ lakh of bags until payment. Bid only with a manufacturer partner who gives
+   you credit, or bid a quantity or rate you can source.
+
+#4 2026_RSSC_604662_1  Rajasthan State Seeds Corp: 20,000 cotton canvas carry bags
+   Value Rs 19 L | EMD Rs 38,000, exemption Yes | fee Rs 2,360 + Rs 590 (MSE: half fee)
+   Closes 02-Nov-2026 13:00 | Pant Krishi Bhawan | delivery only 7 days
+   Why: simple item, but the 7-day delivery plus full stock funding makes it risky for
+   a first order.
+
+#5 2026_JDAJP_604064_1  JDA: facility management of biometric attendance (3 years)
+   Value Rs 10 L | EMD Rs 20,000, exemption Yes | fee Rs 500 + Rs 500
+   Closes 03-Nov-2026 15:00
+   Why: a service with no stock, but it needs technical skill and probably an OEM tie-up for
+   the devices or software. Good only if you have IT or hardware skills.
+
+#6 2026_RAJBH_604711_1  Raj Bhawan (Lok Bhavan): cleaning on job basis, Jaipur + Mount Abu
+   Value Rs 15 L | EMD Rs 30,000, exemption Yes | fee Rs 250 + Rs 500
+   Closes 05-Nov-2026 12:30
+   Why: no stock, but you need workers, EPF/ESI and a labour licence, and the Mount Abu site
+   adds cost.
+
+Not suitable for a first bid (checked):
+- 2026_RSRTC_602174_1 RSRTC cleanliness: EMD Rs 24,000 NOT exempt.
+- 2026_RSRDC_604827_1 AutoCAD operator manpower: needs a placement-agency licence and EPF/ESI;
+  EMD not exempt.
+- 2026_RJPOL_604478_1 police stationery Rs 65 L: too large for a first order.
+- 2026_RJPOL_604476_1 LAN cabling: a works-type job, needs experience.
+- 2026_DLB_604904_1 computers (Bharatpur) and 2026_RAJHC_604213_1 printer (Kota): outside Jaipur.
+- Non-Jaipur stationery and sports goods (Bikaner, Dausa) are fine later, once you have
+  logistics.
+
+==============================================================================
+4. WHAT TO DO THIS WEEK (deadlines are 02 to 05 Nov)
+==============================================================================
+Day 1 (all free or cheap):
+  [ ] PAN + bank current account in the firm name
+  [ ] GST registration (free; most tenders require a GST certificate; 3-7 days)
+  [ ] Udyam registration (free, Aadhaar based, instant) -> MSE benefits
+  [ ] Class 3 DSC (signing + encryption) on a USB token: about Rs 1,500-2,500, 1 day with video KYC
+  [ ] Enrol as bidder on eproc.rajasthan.gov.in (free), map the DSC
+Day 2-3:
+  [ ] Download the NIT + BOQ for #1 and #2 (captcha, manual). Read eligibility, experience,
+      turnover, sample and delivery clauses.
+  [ ] Get rates from 2-3 Jaipur wholesalers; ask for 30-60 day credit against a work order.
+  [ ] Fill the BOQ with your landed price + 8-15% margin. Rate contracts are L1, the
+      lowest price wins.
+  [ ] Pay fees/EMD through the e-GRAS challan linked from the bid (or claim exemption with
+      the certificate), upload, sign and submit at least a day before the deadline.
+Parallel (1-3 weeks, for the next round):
+  [ ] Incorporate a Pvt Ltd or LLP (if you are a proprietor now), then DPIIT recognition
+      + iStart registration -> EMD exemption + experience/turnover relaxation
+  [ ] GeM seller registration (free). Many departments also buy there, and small
+      direct-purchase orders are a quick way to build "past supply" proof.
+  [ ] If you have an innovative product or service: apply for QRate to unlock
+      direct orders up to Rs 25 lakh without bidding.
+
+Money reality with "zero budget":
+  - As MSE only (this week): about Rs 2,000 for the DSC plus about Rs 1,000-10,000 per bid.
+  - As an iStart startup: DSC + about Rs 500-1,000 per bid (processing + half fee).
+  - After winning: 1% performance security and stock until payment. Use supplier
+    credit, a MUDRA Shishu/Kishore loan against the work order, or a partner supplier.
+    Do not bid one-shot supplies you cannot fund.
+
+==============================================================================
+5. HOW THE WEBSITE NOW JUDGES TENDERS (same reasoning, automated daily)
+==============================================================================
+- config/settings.yaml profile: new Jaipur company, 0 experience, 0 budget, prefers
+  up to Rs 25 L, max Rs 10,000 cash to bid, at least 5 days left.
+- LLM prompt (crawler/analyse.py SYSTEM_PROMPT) contains the rules in section 2 and
+  returns, per tender: decision, relevance, reason, upfront_cost_inr, blockers,
+  risk flags, key requirements.
+- Without an LLM key the keyword rules apply the same hard filters (works, class,
+  licensed items, size, cash needed, days left) and score Jaipur, rate contracts,
+  low cost and interest matches.
+- To switch on the LLM, add a free key as a repo secret:
+    gh secret set GEMINI_API_KEY -R gauraviiitg/Web_crawler   (aistudio.google.com)
+    gh secret set GROQ_API_KEY   -R gauraviiitg/Web_crawler   (console.groq.com)
+  Gemini is tried first (better reasoning, larger free quota); Groq is the fallback.
+
+Disclaimer: the rules above are summarised from public RTPP / iStart notifications. Always
+confirm in the specific NIT, which can add conditions.
