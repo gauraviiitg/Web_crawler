@@ -17,9 +17,8 @@
 </header>
 
 <main class="wrap">
-  <section id="briefing" class="briefing" hidden></section>
-
   <nav class="tabs" id="tabs">
+    <button data-tab="picks" data-i18n="tab_picks">Today's picks</button>
     <button data-tab="new" class="active" data-i18n="tab_new">New today</button>
     <button data-tab="worth" data-i18n="tab_worth">Worth reading</button>
     <button data-tab="personal" data-i18n="tab_personal">Personalised</button>
@@ -32,6 +31,7 @@
 
   <section class="filters">
     <input id="q" type="search" data-i18n-ph="search" placeholder="Search title, tender ID, organisation, location...">
+    <select id="f-district"><option value="" data-i18n="all_districts">All districts</option></select>
     <select id="f-org"><option value="" data-i18n="all_orgs">All organisations</option></select>
     <select id="f-sector"><option value="" data-i18n="all_sectors">All sectors</option></select>
     <select id="f-decision">
@@ -57,6 +57,7 @@
   </section>
 
   <p class="count" id="count"></p>
+  <section id="briefing" class="briefing" hidden></section>
   <div id="list" class="list"></div>
   <button id="more" class="more" hidden data-i18n="more">Show more</button>
 </main>

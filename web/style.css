@@ -20,7 +20,7 @@ header a { color: #ffe8c2; }
 .tabs button { border: 1px solid var(--line); background: var(--card); padding: 8px 14px; border-radius: 999px; cursor: pointer; font: inherit; }
 .tabs button.active { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
 .tabs button .n { font-size: 12px; opacity: .8; margin-left: 4px; }
-.filters { display: grid; grid-template-columns: 2fr repeat(5, 1fr); gap: 8px; }
+.filters { display: grid; grid-template-columns: 2fr repeat(6, 1fr); gap: 8px; }
 .filters input, .filters select { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: #fff; min-width: 0; }
 @media (max-width: 900px) { .filters { grid-template-columns: 1fr 1fr; } .filters input { grid-column: 1 / -1; } }
 .count { color: var(--muted); font-size: 13px; margin: 12px 0 8px; }

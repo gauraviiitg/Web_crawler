@@ -7,6 +7,7 @@ from crawler.analyse import (
     _validate, analyse_tenders, match_sections, parse_llm_json, rule_analysis, section_matchers,
 )
 from crawler.briefing import build_briefing
+from crawler.districts import STATEWIDE, districts_for
 from crawler.gepnic import (
     TENDER_ID_RE, ListingRow, SessionExpired, parse_amount, parse_date, parse_detail,
     parse_org_list, parse_org_tenders,
@@ -173,6 +174,15 @@ def test_personalised_sections():
     assert tenders["2026_X_1_1"]["personal"] == ["photocopy"]
     assert stats["personalised"] == {"photocopy": 1}
     assert "personalised: Photocopy & printing" in tenders["2026_X_1_1"]["analysis"]["reason"]
+
+
+def test_districts():
+    assert districts_for({"location": "ADA, Ajmer"}) == ["Ajmer"]
+    assert districts_for({"location": "Dholpur and Bharatpur"}) == ["Bharatpur", "Dholpur"]
+    assert districts_for({"location": "Nathdwara"}) == ["Rajsamand"]
+    assert districts_for({"location": "Nagar Palika Mundawar", "detail": {"pincode": "301407"}}) == ["Alwar"]
+    assert districts_for({"location": "All Rajasthan"}) == [STATEWIDE]
+    assert districts_for({"location": "as per NIT", "org_chain": "PHED, Jaipur||ACE (Proj.) Bharathpur"}) == ["Bharatpur"]
 
 
 def test_briefing_template_without_llm():

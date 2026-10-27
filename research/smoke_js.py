@@ -14,11 +14,11 @@ var els = {}, store = {}, handlers = {};
 function el(id) {
   if (!els[id]) els[id] = { id, innerHTML: "", textContent: "", hidden: false, value: "", dataset: {}, open: false,
     placeholder: "", href: "", classList: { toggle() {} },
-    addEventListener(ev, fn) { handlers[id + ":" + ev] = fn; },
+    addEventListener(ev, fn) { const k = id + ":" + ev, prev = handlers[k]; handlers[k] = prev ? (e) => { prev(e); fn(e); } : fn; },
     insertAdjacentHTML(_, h) { this.innerHTML += h; }, showModal() { this.open = true; }, close() { this.open = false; } };
   return els[id];
 }
-var tabs = ["new","worth","personal","closing","updated","all","closed"].map((t) => ({ dataset: { tab: t, i18n: "tab_" + t }, innerHTML: "", classList: { toggle() {} } }));
+var tabs = ["picks","new","worth","personal","closing","updated","all","closed"].map((t) => ({ dataset: { tab: t, i18n: "tab_" + t }, innerHTML: "", classList: { toggle() {} } }));
 var document = { documentElement: {}, title: "", getElementById: el, addEventListener(ev, fn) { handlers["document:" + ev] = fn; },
   querySelectorAll(sel) { return sel === "#tabs button" ? tabs : []; } };
 var localStorage = { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = v; } };
@@ -34,6 +34,13 @@ def main() -> int:
     ctx.eval("var DATA = " + data + ";" + STUB)
     ctx.eval(app)
     ctx.eval("1")  # let promises settle
+    picks = lambda: ctx.eval("(els.briefing.innerHTML.match(/class=\"pick\"/g) || []).length")
+    all_picks = picks()
+    ctx.eval("els['f-district'].value = 'Jaipur'; handlers['f-district:input']()")
+    jaipur_picks, saved = picks(), ctx.eval("store.district")
+    ctx.eval("els['f-district'].value = ''; handlers['f-district:input']()")
+    print(f"picks: all={all_picks} jaipur={jaipur_picks} saved={saved!r}")
+    print("district options:", ctx.eval("els['f-district'].innerHTML.replace(/<[^>]+>/g, '|').slice(0, 200)"))
     out = {}
     for lang in ("en", "hi"):
         if lang == "hi":
@@ -43,13 +50,15 @@ def main() -> int:
           briefing: els.briefing.innerHTML.length, hidden: els.briefing.hidden,
           list: els.list.innerHTML.length, count: els.count.textContent, stats: els.stats.innerHTML.slice(0, 120),
           dialog: els['dlg-body'].innerHTML.length, dlgOpen: els.dlg.open, tab0: tabs[0].innerHTML,
-          personalTab: tabs[2].innerHTML, sections: els.sections.innerHTML, sectionsHidden: els.sections.hidden,
+          personalTab: tabs[3].innerHTML, sections: els.sections.innerHTML, sectionsHidden: els.sections.hidden,
           portalLinks: (els.list.innerHTML.match(/class="portal/g) || []).length + (els.briefing.innerHTML.match(/class="portal/g) || []).length,
           howOpen: els['dlg-body'].innerHTML.includes('class="box how"'),
           firstCard: els.list.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 200),
           head: els.briefing.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 260)})"""))
     print(json.dumps(out, ensure_ascii=False, indent=1))
-    ok = all(v["briefing"] > 500 and not v["hidden"] and v["list"] > 500 and v["dialog"] > 500 for v in out.values())
+    en, hi = out["en"], out["hi"]
+    ok = (all_picks > 0 and saved == "Jaipur" and en["briefing"] > 500 and not en["hidden"] and en["list"] == 0
+          and hi["hidden"] and hi["list"] > 500 and all(v["dialog"] > 500 for v in out.values()))
     print("SMOKE OK" if ok else "SMOKE FAILED")
     return 0 if ok else 1
 

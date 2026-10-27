@@ -6,6 +6,8 @@ import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from .districts import district_names, districts_for
+
 DETAIL_FIELDS = (
     "ref_no", "tender_type", "form_of_contract", "tender_category", "product_category",
     "sub_category", "contract_type", "covers", "payment_mode", "tender_value", "emd",
@@ -41,6 +43,7 @@ def site_record(record: dict, related: list[str]) -> dict:
         "detail": {k: detail.get(k) for k in DETAIL_FIELDS if detail.get(k) not in (None, "", [], "NA")},
         "analysis": record.get("analysis"),
         "personal": record.get("personal") or [],
+        "districts": districts_for({**record, "title": detail.get("title") or record.get("title")}),
     }
 
 
@@ -65,6 +68,7 @@ def build_site(store, cfg: dict, run: dict, now: datetime, root: Path, briefing:
         "runs": store.data.get("runs", [])[-14:],
         "briefing": briefing,
         "personalised": [{k: s.get(k) for k in ("id", "name_en", "name_hi")} for s in cfg.get("personalised") or []],
+        "districts": district_names(),
         "tenders": tenders,
     }
     (site_dir / "data.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

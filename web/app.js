@@ -5,6 +5,8 @@ const $ = (id) => document.getElementById(id);
 const I18N = {
   en: {
     updated: "Updated", source: "Source", tab_new: "New today", tab_worth: "Worth reading",
+    tab_picks: "Today's picks", all_districts: "All districts",
+    b_filtered: "No picks match these filters. Try the \"Worth reading\" or \"Personalised\" tab with the same filters.",
     tab_closing: "Closing in 3 days", tab_updated: "Updated", tab_all: "All active", tab_closed: "Recently closed",
     search: "Search title, tender ID, organisation, location...", all_orgs: "All organisations",
     all_sectors: "All sectors", any_decision: "Any decision", worth_reading: "Worth reading", maybe: "Maybe",
@@ -43,7 +45,9 @@ const I18N = {
     docs: "Documents on the portal", docs_note: "The portal requires a captcha for each download, so the files can't be linked directly.",
   },
   hi: {
-    updated: "अपडेट", source: "स्रोत", tab_new: "आज नए", tab_worth: "पढ़ने योग्य", tab_closing: "3 दिन में बंद",
+    updated: "अपडेट", source: "स्रोत", tab_new: "आज नए",
+    tab_picks: "आज की पसंद", all_districts: "सभी जिले",
+    b_filtered: "इन फ़िल्टर से कोई पसंद मेल नहीं खाती। इन्हीं फ़िल्टर के साथ \"पढ़ने योग्य\" या \"व्यक्तिगत\" टैब देखें।", tab_worth: "पढ़ने योग्य", tab_closing: "3 दिन में बंद",
     tab_updated: "संशोधित", tab_all: "सभी सक्रिय", tab_closed: "हाल में बंद",
     search: "शीर्षक, टेंडर आईडी, विभाग, स्थान खोजें...", all_orgs: "सभी विभाग", all_sectors: "सभी क्षेत्र",
     any_decision: "कोई भी निर्णय", worth_reading: "पढ़ने योग्य", maybe: "शायद", skip: "छोड़ें", any_value: "कोई भी मूल्य",
@@ -147,6 +151,7 @@ function isUpdated(t) { return t.changes?.length && (t.last_changed || "").slice
 function inTab(t, tab) {
   const dl = daysLeft(t);
   switch (tab) {
+    case "picks": return pickIds().has(t.id);
     case "new": return t.status === "active" && isNew(t);
     case "worth": return t.status === "active" && t.analysis?.decision === "worth_reading";
     case "personal": return t.status === "active" && (state.section ? (t.personal || []).includes(state.section) : t.personal?.length > 0);
@@ -157,12 +162,41 @@ function inTab(t, tab) {
   }
 }
 
+function pickIds() {
+  const b = state.data.briefing || {};
+  return state.data._pickIds ||= new Set([...(b.picks || []), ...(b.personal || []).flatMap((s) => s.top || [])].map((p) => p.tender_id));
+}
+
+function pickVisible(id) {
+  const t = state.data.tenders.find((x) => x.id === id);
+  return !t || matchesFilters(t);
+}
+
+function districtName(id) {
+  const d = (state.data.districts || []).find((x) => x.id === id);
+  return d ? pickLang(d.name_en, d.name_hi) : id;
+}
+
+function renderDistricts() {
+  const sel = $("f-district");
+  const current = sel.value || localStorage.getItem("district") || "";
+  const counts = {};
+  state.data.tenders.forEach((t) => { if (t.status === "active") (t.districts || []).forEach((d) => { counts[d] = (counts[d] || 0) + 1; }); });
+  const opts = (state.data.districts || []).filter((d) => counts[d.id])
+    .map((d) => ({ id: d.id, name: pickLang(d.name_en, d.name_hi), n: counts[d.id] }))
+    .sort((a, b) => (a.id === "Statewide") - (b.id === "Statewide") || a.name.localeCompare(b.name, state.lang));
+  sel.innerHTML = `<option value="">${T("all_districts")}</option>` +
+    opts.map((d) => `<option value="${esc(d.id)}">${esc(d.name)} (${d.n})</option>`).join("");
+  sel.value = opts.some((d) => d.id === current) ? current : "";
+}
+
 function matchesFilters(t) {
   const q = $("q").value.trim().toLowerCase();
   if (q) {
     const hay = [t.id, t.title, t.org_chain, t.location, t.analysis?.summary, t.analysis?.sector, ...(t.analysis?.tags || [])].join(" ").toLowerCase();
     if (!q.split(/\s+/).every((w) => hay.includes(w))) return false;
   }
+  if ($("f-district").value && !(t.districts || []).includes($("f-district").value)) return false;
   if ($("f-org").value && t.org !== $("f-org").value) return false;
   if ($("f-sector").value && t.analysis?.sector !== $("f-sector").value) return false;
   if ($("f-decision").value && t.analysis?.decision !== $("f-decision").value) return false;
@@ -209,6 +243,7 @@ function card(t) {
       ${hasDetail(t) ? `<span>${T("value")}: <span class="money">${inr(t.value)}</span></span><span>${T("emd")}: ${inr(t.emd)}</span>` : `<span>${T("details_pending")}</span>`}
       <span>${T("closes")}: <b>${fmtDate(t.closing)}</b></span>
       ${t.location ? `<span>📍 ${esc(t.location)}</span>` : ""}
+      ${t.districts?.length ? `<span class="district">🗺 ${esc(t.districts.map(districtName).join(", "))}</span>` : ""}
       ${t.status === "active" ? portalButton(t, "small") : ""}
     </div>
     ${a.summary && a.source === "llm" ? `<p class="summary">${esc(pickLang(a.summary, a.summary_hi))}</p>` : ""}
@@ -263,10 +298,11 @@ function openSection(id) {
 function renderBriefing() {
   const b = state.data.briefing;
   const box = $("briefing");
-  if (!b) { box.hidden = true; return; }
+  if (!b || state.tab !== "picks") { box.hidden = true; return; }
   const L = (o, key) => pickLang(o[key + "_en"], o[key + "_hi"]);
+  const filtered = $("q").value.trim() || ["f-district", "f-org", "f-sector", "f-decision", "f-value"].some((id) => $(id).value);
   const list = (items) => (items?.length ? `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "");
-  const picks = (b.picks || []).map((p) => `
+  const picks = (b.picks || []).filter((p) => pickVisible(p.tender_id)).map((p) => `
     <article class="pick">
       <div class="rank">${p.rank}</div>
       <div class="pick-body">
@@ -287,11 +323,12 @@ function renderBriefing() {
       </div>
     </article>`).join("");
   const advice = state.lang === "hi" && b.advice_hi?.length ? b.advice_hi : b.advice_en;
-  const personal = (b.personal || []).map((s) => `
+  const personal = (b.personal || []).map((s) => ({ ...s, top: (s.top || []).filter((p) => pickVisible(p.tender_id)) }))
+    .filter((s) => s.top.length || !filtered).map((s) => `
     <div class="psec">
       <h4>★ ${esc(pickLang(s.name_en, s.name_hi))} <span class="meta">${T("b_open_new", { o: s.open, n: s.new })}</span>
         <button class="link" data-section="${esc(s.id)}">${T("see_all")} →</button></h4>
-      <ul>${(s.top || []).map((p) => {
+      <ul>${s.top.map((p) => {
         const bl = state.lang === "hi" && p.blockers_hi?.length ? p.blockers_hi : p.blockers;
         return `<li><a href="?id=${encodeURIComponent(p.tender_id)}" data-id="${esc(p.tender_id)}">${esc(p.title)}</a>
           <span class="meta">${esc(p.location || "")} · ${inr(p.value)} · ${T("b_deadline")}: ${fmtDate(p.closing)}${p.cash_to_bid != null ? ` · ${T("b_cash")}: ₹${Number(p.cash_to_bid).toLocaleString("en-IN")}` : ""}</span>
@@ -302,7 +339,7 @@ function renderBriefing() {
   box.innerHTML = `
     <h2>${T("b_title")}</h2>
     ${L(b, "headline") ? `<p class="headline">${esc(L(b, "headline"))}</p>` : ""}
-    ${picks || `<p>${T("b_none")}</p>`}
+    ${picks || `<p>${filtered && b.picks?.length ? T("b_filtered") : T("b_none")}</p>`}
     ${personal ? `<div class="box"><h4>${T("b_personal")}</h4>${personal}</div>` : ""}
     ${advice?.length ? `<div class="box"><h4>${T("b_tips")}</h4>${list(advice)}</div>` : ""}
     <p class="meta">${b.source === "llm" ? T("b_by_ai", { m: esc(b.model || "") }) : T("b_template")} · ${T("b_of", { n: b.candidates ?? 0 })} · ${fmtDate(b.generated_at)}</p>`;
@@ -326,6 +363,13 @@ function render() {
     b.innerHTML = esc(T(b.dataset.i18n)) + ` <span class="n">${n}</span>`;
     b.classList.toggle("active", b.dataset.tab === state.tab);
   });
+  renderBriefing();
+  if (state.tab === "picks") {
+    $("count").textContent = "";
+    $("list").innerHTML = "";
+    $("more").hidden = true;
+    return;
+  }
   const list = sorted(all.filter((t) => inTab(t, state.tab) && matchesFilters(t)));
   $("count").textContent = list.length === 1 ? T("tender") : T("tenders", { n: list.length });
   $("list").innerHTML = list.length
@@ -415,7 +459,7 @@ function renderHeader() {
 function renderAll() {
   applyLang();
   renderHeader();
-  renderBriefing();
+  renderDistricts();
   render();
   const open = $("dlg").open && $("dlg-body").dataset.id;
   if (open) showDetail(open);
@@ -436,7 +480,8 @@ async function init() {
 
   fillSelect("f-org", d.tenders.map((t) => t.org));
   fillSelect("f-sector", d.tenders.map((t) => t.analysis?.sector));
-  if (!active.some(isNew)) state.tab = "worth";
+  if (d.briefing?.picks?.length) state.tab = "picks";
+  else if (!active.some(isNew)) state.tab = "worth";
   $("lang").addEventListener("click", () => {
     state.lang = state.lang === "hi" ? "en" : "hi";
     localStorage.setItem("lang", state.lang);
@@ -460,8 +505,9 @@ async function init() {
     if (!b) return;
     state.tab = b.dataset.tab; state.shown = PAGE; render();
   });
-  ["q", "f-org", "f-sector", "f-decision", "f-value", "sort"].forEach((id) =>
+  ["q", "f-district", "f-org", "f-sector", "f-decision", "f-value", "sort"].forEach((id) =>
     $(id).addEventListener("input", () => { state.shown = PAGE; render(); }));
+  $("f-district").addEventListener("input", () => localStorage.setItem("district", $("f-district").value));
   $("more").addEventListener("click", () => { state.shown += PAGE; render(); });
   $("list").addEventListener("click", (e) => {
     if (e.target.closest("a")) return;
