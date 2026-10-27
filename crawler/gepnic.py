@@ -52,6 +52,7 @@ class ListingRow:
     opening: str | None
     link: str = field(repr=False)
     organisation: str = ""
+    source: str = "eproc"
 
 
 def clean(text: str | None) -> str:

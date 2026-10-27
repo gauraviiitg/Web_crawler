@@ -4,6 +4,7 @@ Usage:
   python -m crawler.main                 # full run
   python -m crawler.main --max-orgs 3    # quick test on the first 3 organisations
   python -m crawler.main --no-llm        # skip the LLM (rule-based analysis only)
+  python -m crawler.main --no-gem        # skip the GeM BidPlus crawl
 """
 from __future__ import annotations
 
@@ -18,6 +19,9 @@ import yaml
 
 from .analyse import analyse_tenders
 from .briefing import build_briefing
+from .gem import GemClient
+from .gem import first as gem_first
+from .gem import to_row as gem_row
 from .gepnic import GepnicClient, SessionExpired
 from .report import build_site
 from .store import Store
@@ -83,10 +87,32 @@ def crawl(client: GepnicClient, store: Store, now_str: str, max_orgs: int | None
     return stats
 
 
+def crawl_gem(client: GemClient, store: Store, now_str: str, state: str) -> dict:
+    bids, stats = client.state_bids(state)
+    stats.update(new=0, updated=0, unchanged=0, cancelled=0)
+    seen: set[str] = set()
+    for doc, cities in bids:
+        if gem_first(doc, "b_status") in (3, 5):
+            stats["cancelled"] += 1
+            continue
+        row, detail = gem_row(doc, cities)
+        seen.add(row.tender_id)
+        outcome = store.upsert(row, detail, now_str)
+        stats[outcome] = stats.get(outcome, 0) + 1
+    if stats["complete"]:
+        stats.update(store.mark_missing(seen, now_str, source="gem"))
+    else:
+        stats.update(store.expire(now_str, source="gem"))
+    log.info("GeM %s: %s", state, stats)
+    return stats
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-orgs", type=int, default=None)
     parser.add_argument("--no-llm", action="store_true")
+    parser.add_argument("--no-gem", action="store_true", help="skip the GeM BidPlus crawl")
+    parser.add_argument("--only-gem", action="store_true", help="skip the eProc crawl (testing)")
     parser.add_argument("--data", default=str(ROOT / "data" / "tenders.json"))
     args = parser.parse_args()
 
@@ -103,12 +129,23 @@ def main() -> int:
 
     run = {"started": now_str, "status": "ok", "error": None}
     try:
-        run["crawl"] = crawl(client, store, now_str, args.max_orgs)
+        if not args.only_gem:
+            run["crawl"] = crawl(client, store, now_str, args.max_orgs)
     except Exception as exc:  # keep yesterday's data and still publish the site
         log.exception("crawl failed")
         run["status"] = "crawl_failed"
         run["error"] = f"{type(exc).__name__}: {exc}"[:500]
     run["requests"] = client.request_count
+
+    gem_cfg = cfg.get("gem") or {}
+    if gem_cfg.get("enabled") and not args.no_gem:
+        gem = GemClient(delay=gem_cfg.get("request_delay_seconds", 0.5), timeout=gem_cfg.get("timeout_seconds", 60))
+        try:
+            run["gem"] = crawl_gem(gem, store, now_str, gem_cfg.get("state", "RAJASTHAN"))
+        except Exception as exc:  # GeM problems must not block the eProc report
+            log.exception("GeM crawl failed")
+            run["gem"] = {"error": f"{type(exc).__name__}: {exc}"[:500]}
+        run["gem"]["requests"] = gem.request_count
 
     if args.no_llm:
         cfg["llm"]["providers"] = []

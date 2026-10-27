@@ -17,6 +17,7 @@ DETAIL_FIELDS = (
     "doc_end", "clarification_end", "prebid_date", "prebid_place", "bid_start", "bid_end",
     "bid_opening", "bid_opening_place", "nit_documents", "work_documents",
     "authority_name", "authority_address",
+    "quantity", "ministry", "department", "limited_tender", "pdf_url",
 )
 
 
@@ -43,6 +44,8 @@ def site_record(record: dict, related: list[str]) -> dict:
         "detail": {k: detail.get(k) for k in DETAIL_FIELDS if detail.get(k) not in (None, "", [], "NA")},
         "analysis": record.get("analysis"),
         "personal": record.get("personal") or [],
+        "source": record.get("source", "eproc"),
+        "pdf": detail.get("pdf_url"),
         "districts": districts_for({**record, "title": detail.get("title") or record.get("title")}),
     }
 
@@ -69,6 +72,9 @@ def build_site(store, cfg: dict, run: dict, now: datetime, root: Path, briefing:
         "briefing": briefing,
         "personalised": [{k: s.get(k) for k in ("id", "name_en", "name_hi")} for s in cfg.get("personalised") or []],
         "districts": district_names(),
+        "sources": [{"id": "eproc", "name": cfg["portal"]["name"], "url": cfg["portal"]["home_url"]},
+                    {"id": "gem", "name": "GeM", "url": "https://bidplus.gem.gov.in/all-bids"}],
+        "llm_enabled": bool(cfg["llm"].get("enabled", True)),
         "tenders": tenders,
     }
     (site_dir / "data.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

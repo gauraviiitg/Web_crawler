@@ -5,6 +5,7 @@ __pycache__/
 
 site/
 data/*.tmp
+data/*.tmp.json
 
 research/*.html
 research/*.png

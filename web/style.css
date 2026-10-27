@@ -20,7 +20,7 @@ header a { color: #ffe8c2; }
 .tabs button { border: 1px solid var(--line); background: var(--card); padding: 8px 14px; border-radius: 999px; cursor: pointer; font: inherit; }
 .tabs button.active { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
 .tabs button .n { font-size: 12px; opacity: .8; margin-left: 4px; }
-.filters { display: grid; grid-template-columns: 2fr repeat(6, 1fr); gap: 8px; }
+.filters { display: grid; grid-template-columns: 2fr repeat(7, 1fr); gap: 8px; }
 .filters input, .filters select { padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; background: #fff; min-width: 0; }
 @media (max-width: 900px) { .filters { grid-template-columns: 1fr 1fr; } .filters input { grid-column: 1 / -1; } }
 .count { color: var(--muted); font-size: 13px; margin: 12px 0 8px; }
@@ -78,6 +78,7 @@ a.portal.small:hover { background: var(--brand); color: #fff; }
 .box.how { background: #f0f9ff; border-color: #b9e6fe; }
 .box.how ol { margin: 6px 0 8px 20px; padding: 0; }
 .box.how li { margin: 2px 0; }
+.badge.gem { background: #ecfdf3; color: #067647; border-color: #abefc6; font-weight: 700; }
 .badge.personal { background: #ecfdf3; color: #05603a; font-weight: 600; }
 .sections { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 10px; }
 .sections button { border: 1px solid #a6f4c5; background: #f6fef9; color: #05603a; padding: 6px 12px; border-radius: 999px; cursor: pointer; font: inherit; }

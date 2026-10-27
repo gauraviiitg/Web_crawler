@@ -40,7 +40,17 @@ profile:
     - Jaipur
   min_value_inr: 0
 
+# Government e-Marketplace (GeM BidPlus): open bids whose consignee is in this state.
+gem:
+  enabled: true
+  state: RAJASTHAN
+  request_delay_seconds: 0.5
+  timeout_seconds: 60
+
 llm:
+  # Off: analysis and the daily picks use keyword rules only. Set to true to let the
+  # free-tier providers below re-analyse tenders (needs their API key secrets).
+  enabled: false
   # Free-tier, OpenAI-compatible providers, tried in order. A provider is used only if its
   # API key is set as a GitHub repository secret with the name given in api_key_env.
   batch_size: 8

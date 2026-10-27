@@ -14,7 +14,13 @@ const I18N = {
     v4: "Above ₹10 crore", v5: "Value not disclosed", sort_relevance: "Sort: relevance",
     sort_closing: "Sort: closing soonest", sort_newest: "Sort: newest", sort_value: "Sort: highest value",
     more: "Show more",
-    footer: "Tender data is read from public pages of the Rajasthan eProcurement portal. Classification and \"worth reading\" decisions are AI-generated and can be wrong — always verify on the official portal before bidding. To open a tender: go to the portal → Search → enter the Tender ID.",
+    footer: "Tender data is read from public pages of the Rajasthan eProcurement portal and GeM BidPlus (bids delivered in Rajasthan). Tags and \"worth reading\" decisions come from keyword rules and can be wrong — always check the official tender document before bidding.",
+    all_sources: "All portals", src_eproc: "Rajasthan eProc", src_gem: "GeM",
+    kw_analysis: "Keyword analysis", open_pdf: "Open bid PDF",
+    gem_step1: "Click \"Open bid PDF\": the full GeM bid document (items, quantity, EMD, eligibility, MSE/startup relaxations) opens directly — no login or captcha.",
+    gem_step2: "To bid, register as a seller on gem.gov.in (free: PAN, Aadhaar, Udyam, bank account) and complete your vendor assessment for the product category.",
+    gem_step3: "In the GeM seller dashboard, open Bids and search the bid number {id}.",
+    b_rules: "Picked by keyword rules", quantity: "Quantity", ministry: "Ministry", department: "Department", limited_tender: "Limited tender",
     lang_toggle: "हिंदी", st_active: "Active tenders", st_new: "New today", st_worth: "Worth reading",
     st_closing: "Closing in 3 days", st_value: "Total disclosed value", not_disclosed: "Not disclosed",
     badge_new: "NEW", badge_upd: "UPDATED", closes_today: "Closes today", closes_in: "Closes in {n} days",
@@ -54,7 +60,13 @@ const I18N = {
     v1: "₹10 लाख से कम", v2: "₹10 लाख – ₹1 करोड़", v3: "₹1 – ₹10 करोड़", v4: "₹10 करोड़ से अधिक", v5: "मूल्य घोषित नहीं",
     sort_relevance: "क्रम: प्रासंगिकता", sort_closing: "क्रम: जल्द बंद होने वाले", sort_newest: "क्रम: नवीनतम",
     sort_value: "क्रम: अधिकतम मूल्य", more: "और दिखाएँ",
-    footer: "टेंडर डेटा राजस्थान ई-प्रोक्योरमेंट पोर्टल के सार्वजनिक पृष्ठों से लिया गया है। वर्गीकरण और \"पढ़ने योग्य\" निर्णय एआई द्वारा बनाए गए हैं और गलत हो सकते हैं — बोली लगाने से पहले आधिकारिक पोर्टल पर अवश्य जाँचें। टेंडर खोलने के लिए: पोर्टल → Search → टेंडर आईडी डालें।",
+    footer: "टेंडर डेटा राजस्थान ई-प्रोक्योरमेंट पोर्टल और GeM BidPlus (राजस्थान में डिलीवरी वाली बोलियाँ) के सार्वजनिक पृष्ठों से लिया गया है। टैग और \"पढ़ने योग्य\" निर्णय कीवर्ड नियमों से बने हैं और गलत हो सकते हैं — बोली लगाने से पहले आधिकारिक टेंडर दस्तावेज़ अवश्य जाँचें।",
+    all_sources: "सभी पोर्टल", src_eproc: "राजस्थान ई-प्रोक", src_gem: "GeM",
+    kw_analysis: "कीवर्ड विश्लेषण", open_pdf: "बोली PDF खोलें",
+    gem_step1: "\"बोली PDF खोलें\" पर क्लिक करें: GeM बोली का पूरा दस्तावेज़ (सामान, मात्रा, ईएमडी, पात्रता, एमएसई/स्टार्टअप छूट) सीधे खुलेगा — लॉगिन या कैप्चा नहीं।",
+    gem_step2: "बोली लगाने के लिए gem.gov.in पर विक्रेता के रूप में पंजीकरण करें (मुफ़्त: पैन, आधार, उद्यम, बैंक खाता) और उत्पाद श्रेणी का वेंडर असेसमेंट पूरा करें।",
+    gem_step3: "GeM विक्रेता डैशबोर्ड में Bids खोलें और बोली संख्या {id} खोजें।",
+    b_rules: "कीवर्ड नियमों से चयनित", quantity: "मात्रा", ministry: "मंत्रालय", department: "विभाग", limited_tender: "सीमित निविदा",
     lang_toggle: "English", st_active: "सक्रिय टेंडर", st_new: "आज नए", st_worth: "पढ़ने योग्य", st_closing: "3 दिन में बंद",
     st_value: "कुल घोषित मूल्य", not_disclosed: "घोषित नहीं", badge_new: "नया", badge_upd: "संशोधित",
     closes_today: "आज बंद", closes_in: "{n} दिन में बंद", rule_based: "नियम-आधारित",
@@ -190,6 +202,16 @@ function renderDistricts() {
   sel.value = opts.some((d) => d.id === current) ? current : "";
 }
 
+function renderSources() {
+  const sel = $("f-source");
+  const current = sel.value;
+  const counts = {};
+  state.data.tenders.forEach((t) => { if (t.status === "active") counts[t.source || "eproc"] = (counts[t.source || "eproc"] || 0) + 1; });
+  sel.innerHTML = `<option value="">${T("all_sources")}</option>` + (state.data.sources || [])
+    .map((s) => `<option value="${esc(s.id)}">${T("src_" + s.id)} (${counts[s.id] || 0})</option>`).join("");
+  sel.value = current;
+}
+
 function matchesFilters(t) {
   const q = $("q").value.trim().toLowerCase();
   if (q) {
@@ -197,6 +219,7 @@ function matchesFilters(t) {
     if (!q.split(/\s+/).every((w) => hay.includes(w))) return false;
   }
   if ($("f-district").value && !(t.districts || []).includes($("f-district").value)) return false;
+  if ($("f-source").value && (t.source || "eproc") !== $("f-source").value) return false;
   if ($("f-org").value && t.org !== $("f-org").value) return false;
   if ($("f-sector").value && t.analysis?.sector !== $("f-sector").value) return false;
   if ($("f-decision").value && t.analysis?.decision !== $("f-decision").value) return false;
@@ -234,13 +257,15 @@ function card(t) {
   if (a.sector) badges.push(`<span class="badge">${esc(a.sector)}</span>`);
   if (a.work_type) badges.push(`<span class="badge">${esc(a.work_type)}</span>`);
   (a.risk_flags || []).slice(0, 3).forEach((f) => badges.push(`<span class="badge flag">${esc(f)}</span>`));
-  if (a.source === "rules") badges.push(`<span class="badge rules" title="${T("rule_based_tip")}">${T("rule_based")}</span>`);
+  if (a.source === "rules" && state.data.llm_enabled) badges.push(`<span class="badge rules" title="${T("rule_based_tip")}">${T("rule_based")}</span>`);
+  if (t.source === "gem") badges.unshift(`<span class="badge gem">GeM</span>`);
   return `<article class="card" data-id="${esc(t.id)}">
     <div class="badges">${badges.join("")}</div>
     <h3>${esc(t.title)}</h3>
     <div class="meta">
       <span>${esc(t.org)}</span><span>${esc(t.id)}</span>
-      ${hasDetail(t) ? `<span>${T("value")}: <span class="money">${inr(t.value)}</span></span><span>${T("emd")}: ${inr(t.emd)}</span>` : `<span>${T("details_pending")}</span>`}
+      ${t.source === "gem" ? `<span>${T("quantity")}: <b>${esc(t.detail?.quantity ?? "-")}</b></span>`
+        : hasDetail(t) ? `<span>${T("value")}: <span class="money">${inr(t.value)}</span></span><span>${T("emd")}: ${inr(t.emd)}</span>` : `<span>${T("details_pending")}</span>`}
       <span>${T("closes")}: <b>${fmtDate(t.closing)}</b></span>
       ${t.location ? `<span>📍 ${esc(t.location)}</span>` : ""}
       ${t.districts?.length ? `<span class="district">🗺 ${esc(t.districts.map(districtName).join(", "))}</span>` : ""}
@@ -253,17 +278,23 @@ function card(t) {
 const ORG_URL = "https://eproc.rajasthan.gov.in/nicgep/app?page=FrontEndTendersByOrganisation&service=page";
 
 function portalButton(t, cls = "") {
+  if (t.source === "gem" && t.pdf) {
+    return `<a class="portal pdf ${cls}" href="${esc(t.pdf)}" target="_blank" rel="noopener">📄 ${T("open_pdf")} ↗</a>`;
+  }
   const url = state.data.portal.org_url || ORG_URL;
   return `<a class="portal ${cls}" href="${esc(url)}" target="_blank" rel="noopener" data-copy="${esc(t.id)}"
     title="${esc(T("portal_tip", { org: t.org || "", id: t.id }))}">${T("open_tender")} ↗</a>`;
 }
 
 function tenderRef(id) {
-  const t = state.data.tenders.find((x) => x.id === id);
-  return { id, org: t?.org || "" };
+  return state.data.tenders.find((x) => x.id === id) || { id, org: "" };
 }
 
 function portalSteps(t) {
+  if (t.source === "gem") {
+    return `<ol class="steps"><li>${T("gem_step1")}</li><li>${T("gem_step2")}</li>
+      <li>${T("gem_step3", { id: `<b>${esc(t.id)}</b>` })}</li></ol>`;
+  }
   return `<ol class="steps">
     <li>${T("step1")}</li>
     <li>${T("step2", { org: `<b>${esc(t.org || "")}</b>` })}</li>
@@ -300,7 +331,7 @@ function renderBriefing() {
   const box = $("briefing");
   if (!b || state.tab !== "picks") { box.hidden = true; return; }
   const L = (o, key) => pickLang(o[key + "_en"], o[key + "_hi"]);
-  const filtered = $("q").value.trim() || ["f-district", "f-org", "f-sector", "f-decision", "f-value"].some((id) => $(id).value);
+  const filtered = $("q").value.trim() || ["f-district", "f-source", "f-org", "f-sector", "f-decision", "f-value"].some((id) => $(id).value);
   const list = (items) => (items?.length ? `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "");
   const picks = (b.picks || []).filter((p) => pickVisible(p.tender_id)).map((p) => `
     <article class="pick">
@@ -342,7 +373,7 @@ function renderBriefing() {
     ${picks || `<p>${filtered && b.picks?.length ? T("b_filtered") : T("b_none")}</p>`}
     ${personal ? `<div class="box"><h4>${T("b_personal")}</h4>${personal}</div>` : ""}
     ${advice?.length ? `<div class="box"><h4>${T("b_tips")}</h4>${list(advice)}</div>` : ""}
-    <p class="meta">${b.source === "llm" ? T("b_by_ai", { m: esc(b.model || "") }) : T("b_template")} · ${T("b_of", { n: b.candidates ?? 0 })} · ${fmtDate(b.generated_at)}</p>`;
+    <p class="meta">${b.source === "llm" ? T("b_by_ai", { m: esc(b.model || "") }) : state.data.llm_enabled ? T("b_template") : T("b_rules")} · ${T("b_of", { n: b.candidates ?? 0 })} · ${fmtDate(b.generated_at)}</p>`;
   box.hidden = false;
 }
 
@@ -382,9 +413,9 @@ function showDetail(id) {
   const t = state.data.tenders.find((x) => x.id === id);
   if (!t) return;
   const a = t.analysis || {};
-  const rows = Object.entries(t.detail || {}).map(([k, v]) => {
+  const rows = Object.entries(t.detail || {}).filter(([k]) => k !== "pdf_url").map(([k, v]) => {
     let val = Array.isArray(v) ? v.join(", ") : MONEY.has(k) ? inr(v) : DATES.has(k) ? fmtDate(v) : v;
-    const label = (state.lang === "hi" && LABELS_HI[k]) || LABELS[k] || k;
+    const label = (state.lang === "hi" && LABELS_HI[k]) || LABELS[k] || (I18N.en[k] ? T(k) : k);
     return `<tr><td>${esc(label)}</td><td>${esc(val)}</td></tr>`;
   }).join("");
   const list = (items) => (items?.length ? `<ul>${items.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "");
@@ -411,7 +442,7 @@ function showDetail(id) {
       ${docs.length ? `<b>${T("docs")}</b><ul>${docs.map((f) => `<li>📄 ${esc(f)}</li>`).join("")}</ul><p class="meta">${T("docs_note")}</p>` : ""}
     </div>
     <div class="box">
-      <h4>${a.source === "llm" ? T("ai_analysis") : T("rule_analysis")}</h4>
+      <h4>${a.source === "llm" ? T("ai_analysis") : state.data.llm_enabled ? T("rule_analysis") : T("kw_analysis")}</h4>
       ${a.summary ? `<p>${esc(pickLang(a.summary, a.summary_hi))}</p>` : ""}
       ${a.reason ? `<p><b>${T("why")}:</b> ${esc(pickLang(a.reason, a.reason_hi))}</p>` : ""}
       ${a.upfront_cost_inr != null ? `<p><b>${T("cash_to_bid")}:</b> ₹${Number(a.upfront_cost_inr).toLocaleString("en-IN")}</p>` : ""}
@@ -444,7 +475,7 @@ function renderHeader() {
   const d = state.data;
   const run = d.run || {};
   const an = run.analysis || {};
-  $("runinfo").textContent = an.llm_pending ? T("llm_pending", { n: an.llm_pending }) : "";
+  $("runinfo").textContent = d.llm_enabled && an.llm_pending ? T("llm_pending", { n: an.llm_pending }) : "";
   const active = d.tenders.filter((t) => t.status === "active");
   const stat = (n, label) => `<div class="stat"><b>${n}</b><span>${label}</span></div>`;
   $("stats").innerHTML = [
@@ -460,6 +491,7 @@ function renderAll() {
   applyLang();
   renderHeader();
   renderDistricts();
+  renderSources();
   render();
   const open = $("dlg").open && $("dlg-body").dataset.id;
   if (open) showDetail(open);
@@ -505,7 +537,7 @@ async function init() {
     if (!b) return;
     state.tab = b.dataset.tab; state.shown = PAGE; render();
   });
-  ["q", "f-district", "f-org", "f-sector", "f-decision", "f-value", "sort"].forEach((id) =>
+  ["q", "f-district", "f-source", "f-org", "f-sector", "f-decision", "f-value", "sort"].forEach((id) =>
     $(id).addEventListener("input", () => { state.shown = PAGE; render(); }));
   $("f-district").addEventListener("input", () => localStorage.setItem("district", $("f-district").value));
   $("more").addEventListener("click", () => { state.shown += PAGE; render(); });

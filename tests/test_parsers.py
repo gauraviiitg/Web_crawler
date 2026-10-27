@@ -176,6 +176,42 @@ def test_personalised_sections():
     assert "personalised: Photocopy & printing" in tenders["2026_X_1_1"]["analysis"]["reason"]
 
 
+NEWCO = {"experience_years": 0, "min_days_left": 5, "max_value_inr": 2500000, "max_upfront_inr": 10000,
+         "interests": ["stationery"], "locations": ["Jaipur"]}
+GEM_DOC = {
+    "b_id": [9993190], "b_bid_number": ["GEM/2026/B/8123892"], "b_category_name": ["Photo Copy Paper A4"],
+    "b_total_quantity": [17], "b_status": [1], "b_bid_type": [1], "is_rc_bid": [0],
+    "ba_is_limited_tendering": [0], "ba_is_global_tendering": [0],
+    "final_start_date_sort": ["2026-10-06T17:21:23Z"], "final_end_date_sort": ["2026-11-20T21:00:00Z"],
+    "ba_official_details_minName": ["Ministry of Railways"], "ba_official_details_deptName": ["North Western Railway"],
+}
+
+
+def test_gem_row_and_source_separation(tmp_path):
+    from crawler.gem import to_row
+
+    row, detail = to_row(GEM_DOC, ["Jaipur"])
+    assert row.tender_id == "GEM/2026/B/8123892" and row.source == "gem"
+    assert row.closing == "2026-11-20T21:00" and row.organisation == "North Western Railway"
+    assert detail["pdf_url"].endswith("/showbidDocument/9993190") and detail["tender_category"] == "Goods"
+
+    store = Store(tmp_path / "t.json")
+    now = "2026-10-27T20:00"
+    assert store.upsert(row, detail, now) == "new"
+    assert store.tenders[row.tender_id]["family"] == row.tender_id
+    store.mark_missing(set(), now)  # an eProc crawl must not close GeM bids
+    assert store.tenders[row.tender_id]["status"] == "active"
+    store.mark_missing(set(), now, source="gem")
+    assert store.tenders[row.tender_id]["status"] == "removed"
+
+    record = {**store.tenders[row.tender_id], "status": "active"}
+    assert districts_for(record) == ["Jaipur"]
+    a = rule_analysis(record, NEWCO, datetime(2026, 10, 27, 20, 0))
+    assert a["upfront_cost_inr"] == 0 and not a["blockers"]
+    limited, ldetail = to_row({**GEM_DOC, "ba_is_limited_tendering": [1]}, [])
+    assert rule_analysis({**record, "detail": ldetail}, NEWCO, datetime(2026, 10, 27))["blockers"]
+
+
 def test_districts():
     assert districts_for({"location": "ADA, Ajmer"}) == ["Ajmer"]
     assert districts_for({"location": "Dholpur and Bharatpur"}) == ["Bharatpur", "Dholpur"]

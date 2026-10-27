@@ -55,10 +55,17 @@ def main() -> int:
           howOpen: els['dlg-body'].innerHTML.includes('class="box how"'),
           firstCard: els.list.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 200),
           head: els.briefing.innerHTML.replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').slice(0, 260)})"""))
-    print(json.dumps(out, ensure_ascii=False, indent=1))
+    ctx.eval("els['f-source'].value = 'gem'; tabs[0].dataset.tab; handlers['tabs:click']({ target: { closest: () => ({ dataset: { tab: 'all' } }) } }); handlers['f-source:input']()")
+    gem = json.loads(ctx.eval("""JSON.stringify({ count: els.count.textContent,
+      pdfLinks: (els.list.innerHTML.match(/class="portal pdf/g) || []).length,
+      eprocCards: (els.list.innerHTML.match(/Open tender on portal|पोर्टल पर टेंडर खोलें/g) || []).length,
+      sources: els['f-source'].innerHTML.replace(/<[^>]+>/g, '|') })"""))
+    print("gem filter:", gem)
+    print(json.dumps(out, ensure_ascii=True, indent=1))
     en, hi = out["en"], out["hi"]
     ok = (all_picks > 0 and saved == "Jaipur" and en["briefing"] > 500 and not en["hidden"] and en["list"] == 0
-          and hi["hidden"] and hi["list"] > 500 and all(v["dialog"] > 500 for v in out.values()))
+          and hi["hidden"] and hi["list"] > 500 and all(v["dialog"] > 500 for v in out.values())
+          and (gem["pdfLinks"] > 0 and gem["eprocCards"] == 0 if "GeM" in gem["sources"] and "(0)" not in gem["sources"] else True))
     print("SMOKE OK" if ok else "SMOKE FAILED")
     return 0 if ok else 1
 

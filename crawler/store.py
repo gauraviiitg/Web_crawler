@@ -30,8 +30,8 @@ def _hash(data: dict, fields: tuple[str, ...]) -> str:
 
 
 def family_key(tender_id: str) -> str:
-    """2026_CEPWD_604884_4 -> 2026_CEPWD_604884 (groups re-tenders)."""
-    return tender_id.rsplit("_", 1)[0]
+    """2026_CEPWD_604884_4 -> 2026_CEPWD_604884 (groups re-tenders). GeM bid numbers stand alone."""
+    return tender_id if tender_id.startswith("GEM/") else tender_id.rsplit("_", 1)[0]
 
 
 class Store:
@@ -83,6 +83,7 @@ class Store:
             self.tenders[row.tender_id] = record
             outcome = "new"
         record.update(listing)
+        record["source"] = row.source
         record["listing_hash"] = _hash(asdict(row), LISTING_FIELDS)
         record["last_seen"] = now
         record["status"] = "active"
@@ -105,10 +106,11 @@ class Store:
         fam = family_key(tender_id)
         return sorted(t for t in self.tenders if t != tender_id and self.tenders[t].get("family") == fam)
 
-    def mark_missing(self, seen_ids: set[str], now: str) -> dict:
+    def mark_missing(self, seen_ids: set[str], now: str, source: str = "eproc") -> dict:
+        """Close active tenders of `source` that a complete crawl of that source did not see."""
         counts = {"closed": 0, "removed": 0}
         for tender_id, record in self.tenders.items():
-            if tender_id in seen_ids or record.get("status") != "active":
+            if tender_id in seen_ids or record.get("status") != "active" or record.get("source", "eproc") != source:
                 continue
             closing = record.get("closing")
             if closing and closing <= now:
@@ -119,6 +121,17 @@ class Store:
                 counts["removed"] += 1
             record["status_changed"] = now
         return counts
+
+    def expire(self, now: str, source: str) -> dict:
+        """Close active tenders of `source` whose deadline has passed (used after a partial crawl)."""
+        closed = 0
+        for record in self.tenders.values():
+            if (record.get("status") == "active" and record.get("source", "eproc") == source
+                    and record.get("closing") and record["closing"] <= now):
+                record["status"] = "closed"
+                record["status_changed"] = now
+                closed += 1
+        return {"closed": closed, "removed": 0}
 
     def prune(self, now: datetime, days: int) -> int:
         cutoff = (now - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M")

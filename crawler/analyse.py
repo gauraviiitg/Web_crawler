@@ -95,6 +95,7 @@ WORK_TYPES: %s""" % (", ".join(SECTORS), ", ".join(WORK_TYPES))
 
 LICENSED_RE = re.compile(
     r"drug|medicine|pharma|surgical|suture|reagent|kit|implant|graft|x-ray|radiograph|anesthesia|"
+    r"pesticide|insecticide|fungicide|herbicide|emulsifiable|malathion|fertili[sz]er|"
     r"laborator|lab items|blood bag|transformer|surge arrester|kv |switchyard|insulator|meter|"
     r"manpower|man power|placement agenc|security guard|scada|spares? for|bearing|ball tube mill|"
     r"tester|injection set|test set|hospital use|dental|medical|machine|installation|commissioning|"
@@ -234,6 +235,14 @@ def feasibility_blockers(record: dict, profile: dict, now: datetime) -> list[tup
     days = _days_left(record.get("closing"), now)
     if days is not None and days < profile.get("min_days_left", 0):
         blockers.append((f"only {max(days, 0):.0f} days left", f"केवल {max(days, 0):.0f} दिन शेष"))
+    if record.get("source") == "gem":
+        if "Reverse Auction" in (d.get("tender_type") or ""):
+            blockers.append(("reverse auction: only sellers who qualified in the bid",
+                             "रिवर्स ऑक्शन: केवल बोली में योग्य विक्रेता"))
+        if d.get("limited_tender") == "Yes":
+            blockers.append(("limited tender: invited sellers only", "सीमित निविदा: केवल आमंत्रित विक्रेता"))
+        if d.get("global_tender") == "Yes":
+            blockers.append(("global tender", "वैश्विक निविदा"))
     return blockers
 
 
@@ -272,6 +281,8 @@ def rule_analysis(record: dict, profile: dict, now: datetime, personal: list[tup
         flags.append(f"closes in {max(days, 0):.0f} days")
     if not d:
         flags.append("details not fetched yet")
+    elif record.get("source") == "gem":
+        flags.append("GeM: value, EMD and eligibility are in the bid PDF")
     elif not d.get("tender_value"):
         flags.append("value not disclosed")
     if record.get("lots_in_group"):
@@ -476,7 +487,9 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
         r["tender_id"]: match_sections(r, matchers) for r in tenders.values() if r.get("status") == "active"
     }
     version = prompt_version(tuple(names))
-    pending = [r for r in tenders.values() if r.get("status") == "active" and not _llm_current(r, version)]
+    keep_llm = cfg["llm"].get("enabled", True)
+    pending = [r for r in tenders.values()
+               if r.get("status") == "active" and not (keep_llm and _llm_current(r, version))]
     pending.sort(key=lambda r: (r.get("first_seen", ""), r.get("closing") or ""), reverse=True)
 
     for record in pending:
@@ -499,6 +512,9 @@ def _analyse_llm(tenders: dict, cfg: dict, now: datetime, pending: list[dict], s
     section_ids = tuple(s["id"] for s in sections)
 
     clients = llm_clients(cfg)
+    if not cfg["llm"].get("enabled", True):
+        stats["llm_disabled"] = True
+        return stats
     if not clients:
         names = ", ".join(p["api_key_env"] for p in cfg["llm"]["providers"])
         stats["llm_error"] = f"no LLM API key set ({names}) - rule-based analysis only"
@@ -566,5 +582,7 @@ def _llm_current(record: dict, version: str) -> bool:
 
 
 def llm_clients(cfg: dict) -> list[LLMClient]:
+    if not cfg["llm"].get("enabled", True):
+        return []
     return [LLMClient(p, os.environ[p["api_key_env"]]) for p in cfg["llm"]["providers"]
             if os.environ.get(p["api_key_env"])]

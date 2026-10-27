@@ -23,8 +23,17 @@ tmp = ROOT / "data" / "rebuild.tmp"
 tmp.write_bytes((ROOT / "data/tenders.json").read_bytes())
 store = Store(tmp)
 now = datetime.now(timezone(timedelta(hours=5, minutes=30))).replace(tzinfo=None)
-run = {"started": now.strftime("%Y-%m-%dT%H:%M"), "status": "ok", "error": None,
-       "analysis": analyse_tenders(store.tenders, cfg, now)}
+run = {"started": now.strftime("%Y-%m-%dT%H:%M"), "status": "ok", "error": None}
+if "--gem" in sys.argv:
+    import logging
+
+    from crawler.gem import GemClient
+    from crawler.main import crawl_gem
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", stream=sys.stderr)
+    gem = GemClient(delay=cfg["gem"].get("request_delay_seconds", 0.5))
+    run["gem"] = crawl_gem(gem, store, now.strftime("%Y-%m-%dT%H:%M"), cfg["gem"]["state"])
+    run["gem"]["requests"] = gem.request_count
+run["analysis"] = analyse_tenders(store.tenders, cfg, now)
 briefing = build_briefing(store.tenders, cfg, now)
 build_site(store, cfg, run, now, ROOT, briefing)
 tmp.unlink()
