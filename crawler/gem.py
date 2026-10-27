@@ -111,7 +111,7 @@ class GemClient:
                 by_id.setdefault(str(first(doc, "b_id")), (doc, set()))
         stats["listed"] = len(by_id)
         stats["state_total"] = total
-        stats["complete"] = len(by_id) >= 0.97 * total
+        stats["complete"] = len(by_id) >= 0.95 * total
         return [(doc, sorted(cities)) for doc, cities in by_id.values()], stats
 
 
