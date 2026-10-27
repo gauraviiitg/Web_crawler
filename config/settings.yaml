@@ -100,6 +100,31 @@ personalised:
       - book binding
       - spiral binding
       - computer typing
+  - id: vehicles
+    name_en: Vehicle on hire
+    name_hi: वाहन किराये पर
+    description: >
+      Providing vehicles on hire / rent to government offices: cars, jeeps and taxis on monthly
+      rent with driver, buses, mini buses and tempo travellers, trucks, tractors, water tankers,
+      loaders and JCB-type machines, ambulances on hire.
+    keywords:
+      - re:hir(?:e|ed|ing)\b.{0,40}?\b(?:vehicles?|cars?|jeeps?|taxis?|cabs?|bus(?:es)?|trucks?|tractors?|tankers?|jcb|loaders?|pick\s?ups?|ambulances?|camper)
+      - re:(?:vehicles?|cars?|jeeps?|taxis?|cabs?|bus(?:es)?|trucks?|tractors?|tankers?|jcb)\b.{0,25}?\b(?:on|for)\s+(?:hire|rent|monthly\s+rent)
+      - taxi
+      - cab
+      - jeep
+      - bolero
+      - scorpio
+      - innova
+      - ertiga
+      - dzire
+      - tempo traveller
+      - mini bus
+      - re:supply\s+of\s+(?:portable\s+)?(?:drinking\s+)?water\s+tankers?
+      - tractor trolley
+      - jcb
+      - vahan
+      - gadi kiraye
 
 briefing:
   top_picks: 6      # tenders shown in the daily "top picks for us" section

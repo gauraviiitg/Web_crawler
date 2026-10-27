@@ -158,6 +158,15 @@ def test_personalised_sections():
     assert match_sections(rec("HDPE laminated kraft paper bag"), m) == []
     assert match_sections(rec("Annual contract", product_category="Photostat services"), m) == ["photocopy"]
 
+    vehicles = section_matchers([{"id": "vehicles", "name_en": "Vehicle on hire", "keywords": [
+        r"re:hir(?:e|ed|ing)\b.{0,40}?\b(?:vehicles?|cars?|tractors?|jcb)",
+        r"re:(?:vehicles?|cars?|tankers?)\b.{0,25}?\b(?:on|for)\s+(?:hire|rent)", "innova"]}])
+    assert match_sections(rec("Hiring of 2 nos. vehicles for the office"), vehicles) == ["vehicles"]
+    assert match_sections(rec("Supply of water tanker on rent basis"), vehicles) == ["vehicles"]
+    assert match_sections(rec("Garage cars", description="innova crysta on rent"), vehicles) == ["vehicles"]
+    assert match_sections(rec("Maintenance of parks", sub_category="Water Tanker"), vehicles) == []
+    assert match_sections(rec("Supply of vehicle tyres"), vehicles) == []
+
     tenders = {"2026_X_1_1": rec("Photostat work", tender_category="Services", tenderer_class="ALL")}
     cfg = {"profile": {"experience_years": 0}, "llm": {"providers": []}, "personalised": sections}
     stats = analyse_tenders(tenders, cfg, datetime(2026, 10, 27, 9))

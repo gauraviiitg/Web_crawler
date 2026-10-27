@@ -177,9 +177,12 @@ def sections_text(sections: list[dict]) -> str:
 
 
 def section_matchers(sections: list[dict]) -> dict[str, re.Pattern]:
+    """Keywords match whole words (optional plural); a keyword starting with "re:" is a raw regex."""
+    def part(k: str) -> str:
+        return k[3:] if k.startswith("re:") else r"\s*".join(map(re.escape, k.split()))
+
     return {
-        s["id"]: re.compile(r"\b(?:%s)(?:s|es)?\b" % "|".join(
-            r"\s*".join(map(re.escape, k.split())) for k in s.get("keywords", [])), re.I)
+        s["id"]: re.compile(r"\b(?:%s)(?:s|es)?\b" % "|".join(part(k) for k in s["keywords"]), re.I)
         for s in sections if s.get("keywords")
     }
 
@@ -449,7 +452,7 @@ def _validate(item: dict, now: datetime, model: str, full_details: bool = True,
         "tags": str_list(item.get("tags"), 5),
         "personal_sections": [s for s in str_list(item.get("personal_sections"), 5) if s in section_ids],
         "source": "llm",
-        "prompt_version": PROMPT_VERSION,
+        "prompt_version": prompt_version(section_ids),
         "basis": "full" if full_details else "listing",
         "model": model,
         "analysed_at": now.strftime("%Y-%m-%dT%H:%M"),
@@ -472,7 +475,8 @@ def analyse_tenders(tenders: dict, cfg: dict, now: datetime) -> dict:
     rule_sections = {
         r["tender_id"]: match_sections(r, matchers) for r in tenders.values() if r.get("status") == "active"
     }
-    pending = [r for r in tenders.values() if r.get("status") == "active" and not _llm_current(r)]
+    version = prompt_version(tuple(names))
+    pending = [r for r in tenders.values() if r.get("status") == "active" and not _llm_current(r, version)]
     pending.sort(key=lambda r: (r.get("first_seen", ""), r.get("closing") or ""), reverse=True)
 
     for record in pending:
@@ -545,13 +549,20 @@ def _analyse_llm(tenders: dict, cfg: dict, now: datetime, pending: list[dict], s
                 stats["llm"] += 1
                 stats["models"][label] = stats["models"].get(label, 0) + 1
         stats["model"] = label
-    stats["llm_pending"] = sum(1 for r in tenders.values() if r.get("status") == "active" and not _llm_current(r))
+    version = prompt_version(section_ids)
+    stats["llm_pending"] = sum(
+        1 for r in tenders.values() if r.get("status") == "active" and not _llm_current(r, version))
     return stats
 
 
-def _llm_current(record: dict) -> bool:
+def prompt_version(section_ids: tuple[str, ...]) -> str:
+    """Changes when the prompt or the list of personalised sections changes."""
+    return PROMPT_VERSION + (":" + ",".join(section_ids) if section_ids else "")
+
+
+def _llm_current(record: dict, version: str) -> bool:
     a = record.get("analysis") or {}
-    return a.get("source") == "llm" and a.get("prompt_version") == PROMPT_VERSION
+    return a.get("source") == "llm" and a.get("prompt_version") == version
 
 
 def llm_clients(cfg: dict) -> list[LLMClient]:
