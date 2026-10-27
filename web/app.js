@@ -147,6 +147,7 @@ function showDetail(id) {
     <div class="actions">
       <a href="${esc(state.data.portal.url)}" target="_blank" rel="noopener">Open portal</a>
       <button class="secondary" onclick="navigator.clipboard.writeText('${esc(t.id)}');this.textContent='Copied ${esc(t.id)}'">Copy Tender ID</button>
+      <button class="secondary" onclick="navigator.clipboard.writeText(location.origin+location.pathname+'?id=${esc(t.id)}');this.textContent='Link copied'">Copy link</button>
     </div>
     <div class="box">
       <h4>${a.source === "llm" ? "AI analysis" : "Rule-based analysis (AI analysis pending)"}</h4>
@@ -216,6 +217,8 @@ async function init() {
   $("more").addEventListener("click", () => { state.shown += PAGE; render(); });
   $("list").addEventListener("click", (e) => { const c = e.target.closest(".card"); if (c) showDetail(c.dataset.id); });
   render();
+  const linked = new URLSearchParams(location.search).get("id");
+  if (linked) showDetail(linked);
 }
 
 init().catch((err) => { $("list").innerHTML = `<div class="empty">Could not load data: ${esc(err.message)}</div>`; });

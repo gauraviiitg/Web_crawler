@@ -146,5 +146,101 @@ Money reality with "zero budget":
     gh secret set GROQ_API_KEY   -R gauraviiitg/Web_crawler   (console.groq.com)
   Gemini is tried first (better reasoning, larger free quota); Groq is the fallback.
 
+==============================================================================
+6. TOP PICK IN DEPTH: 2026_DLB_604082_1, JMC STATIONERY RATE CONTRACT (with a loan)
+==============================================================================
+Facts from the portal:
+  Buyer        Deputy Commissioner (Store), Jaipur Nagar Nigam, Pt. Deendayal Upadhyay
+               Bhawan, Lal Kothi, Tonk Road, Jaipur 302015
+  Ref no.      04 DEPUTY COMMISSIONER STORE | Open Tender | Goods | Item Rate | 3 covers
+  Value        Rs 18,00,000 (estimate for FY 2026-27, not a guaranteed quantity)
+  Period       365 days rate contract | Bid validity 90 days
+  Fees         Tender fee Rs 590 (no fee exemption; MSE pays half) + RISL processing Rs 500
+  EMD          Rs 36,000 (2%) | EMD exemption allowed: Yes | MSE rate 0.5% = Rs 9,000
+  Payment mode OFFLINE: fee/processing via e-GRAS challan, EMD by DD/BG/BC. The ORIGINAL
+               instruments go physically to the Lal Kothi office before the deadline, and
+               scans are uploaded with the bid (they must match or the bid is rejected).
+  Deadline     02-Nov-2026 13:00 | Opening 02-Nov-2026 14:00, Jaipur | no pre-bid meeting
+  Documents    Tendernotice_1.pdf, eproc04dcstore.pdf (conditions), BOQ_1071454.xls (items)
+  Eligibility  "As per bid documents", so read eproc04dcstore.pdf for experience/turnover
+               clauses, brand lists, samples, GST/PAN, delivery time and penalty.
+
+Why it is the best first tender:
+  - Rate contract: JMC orders as needed through the year, so stock is bought per order.
+  - Ordinary items sold by Jaipur wholesalers (Chaura Rasta / Tripolia Bazaar), easy to
+    source on 15-30 day credit, delivered by you within the city.
+  - Small fees, EMD exemption allowed, all classes of bidder allowed, Jaipur location.
+  - Winning gives a GOVERNMENT SUPPLY ORDER and completion certificate, which is the
+    experience proof that most later tenders demand.
+
+Money plan (estimates):
+  Before bidding (own money, needed by 02-Nov; a loan will not arrive in time):
+    DSC Class 3 + token          Rs 1,500 - 2,500
+    Tender fee (MSE half)        Rs 295
+    Processing fee               Rs 500
+    EMD                          Rs 0 if exemption certificate accepted, else Rs 9,000 (MSE)
+    Total                        about Rs 2,300 (with exemption) to Rs 12,000 (without)
+  After winning (loan):
+    Performance security 1% (MSE) to 5%   Rs 18,000 - 90,000 (refunded after the contract)
+    Agreement stamp paper                 as per NIT
+    Stock float: about Rs 1.5 L of orders per month x 2-3 months before payment
+                                          Rs 3 - 4.5 lakh revolving
+    Loan size to ask for                  Rs 5 lakh working capital
+  Margin reality: stationery is bid item by item and the lowest rate wins, so expect 5-10% net
+  (about Rs 90,000 - 1.8 lakh on a full Rs 18 L of orders). The real gain is the experience.
+
+Best loans for this (apply NOW, with the work order later as support):
+  1) Mukhyamantri Yuva Swarozgar Yojana (MYSY), Rajasthan, launched 12-Jan-2026, valid to 2029
+     - INTEREST-FREE (100% interest reimbursed by the state) + margin money + CGTMSE fee
+       reimbursed. Trade/service: up to Rs 5 L for graduates/ITI, Rs 3.5 L for 8th-12th pass.
+     - Age 18-45, Rajasthan domicile, not a bank defaulter; firms need 51%+ ownership by
+       18-45-year-olds. Apply on SSO > Citizen Apps > "Mukhyamantri Yuva Swarozgar (MYSY)"
+       or at an e-Mitra. The DIC forwards it to your chosen bank at its weekly meeting.
+     - Documents: Aadhaar, domicile (mool niwas), photo, education certificate, project
+       report (DPR), bank details.
+  2) PM MUDRA Kishore (Rs 50,000 - 5 lakh), collateral-free, about 9-12% interest, via any bank or
+     jansamarth.in. A good backup if MYSY is slow or you are over 45.
+  3) Bank overdraft/BG limit under CGTMSE guarantee for the performance security.
+  Note: TReDS invoice discounting is for central PSU/corporate buyers, not JMC.
+
+Risks to check before bidding:
+  - JMC is a municipal body and payments can be slow. Keep the loan sized for 3 months.
+  - Rates are fixed for 365 days while paper prices may rise. Quote with a buffer.
+  - Branded items (if the BOQ names brands) need a dealer rate. Ask the wholesaler.
+  - No guaranteed quantity: JMC may order much less than Rs 18 L.
+  - Late delivery penalties. Read eproc04dcstore.pdf.
+
+==============================================================================
+7. LINKS
+==============================================================================
+Tenders on our report site (each opens the tender directly):
+  #1 https://gauraviiitg.github.io/Web_crawler/?id=2026_DLB_604082_1
+  #2 https://gauraviiitg.github.io/Web_crawler/?id=2026_RJPOL_604545_1
+  #3 https://gauraviiitg.github.io/Web_crawler/?id=2026_RSMSB_604026_1
+  #4 https://gauraviiitg.github.io/Web_crawler/?id=2026_RSSC_604662_1
+  #5 https://gauraviiitg.github.io/Web_crawler/?id=2026_JDAJP_604064_1
+  #6 https://gauraviiitg.github.io/Web_crawler/?id=2026_RAJBH_604711_1
+  The portal itself has no permanent tender links (session tokens). Open
+  https://eproc.rajasthan.gov.in/nicgep/app > Search (Tender ID) > type the ID + captcha.
+Portal and rules:
+  Bidder help / enrolment     https://eproc.rajasthan.gov.in/nicgep/app?page=HelpForContractors&service=page
+  RTPP Act/Rules, notices     https://sppp.rajasthan.gov.in
+  e-GRAS (fee challan)        https://egras.raj.nic.in
+Registrations:
+  GST                         https://www.gst.gov.in
+  Udyam (MSE)                 https://udyamregistration.gov.in
+  Company / LLP (MCA)         https://www.mca.gov.in
+  DPIIT startup recognition   https://www.startupindia.gov.in
+  iStart Rajasthan            https://istart.rajasthan.gov.in
+  DSC (e.g. eMudhra)          https://www.emudhra.com
+  GeM seller                  https://gem.gov.in
+Loans:
+  Rajasthan SSO (MYSY form)   https://sso.rajasthan.gov.in
+  MYSY notification           https://industries.rajasthan.gov.in/order/detail/946/0/228222
+  MYSY press release          https://dipr.rajasthan.gov.in/press-release-detail/238731/85
+  MUDRA                       https://www.mudra.org.in
+  JanSamarth (online loans)   https://www.jansamarth.in
+  CGTMSE                      https://www.cgtmse.in
+
 Disclaimer: the rules above are summarised from public RTPP / iStart notifications. Always
 confirm in the specific NIT, which can add conditions.
