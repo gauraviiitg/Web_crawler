@@ -36,7 +36,9 @@ profile:
 
 llm:
   # GitHub Models (free tier) - authenticated with the workflow's GITHUB_TOKEN.
-  endpoint: https://models.github.ai/inference/chat/completions
+  endpoints:
+    - https://models.github.ai/inference/chat/completions
+    - https://models.inference.ai.azure.com/chat/completions
   models:
     - openai/gpt-4o-mini
     - openai/gpt-4.1-mini

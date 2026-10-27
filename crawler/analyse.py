@@ -180,7 +180,8 @@ class QuotaExhausted(Exception):
 
 class GitHubModelsClient:
     def __init__(self, cfg: dict, token: str):
-        self.endpoint = cfg["endpoint"]
+        self.endpoints = list(cfg.get("endpoints") or [cfg["endpoint"]])
+        self.endpoint = self.endpoints[0]
         self.models = list(cfg["models"])
         self.delay = cfg.get("seconds_between_requests", 5)
         self.max_requests = cfg.get("max_requests_per_run", 120)
@@ -194,26 +195,33 @@ class GitHubModelsClient:
         for _ in range(3):
             time.sleep(self.delay)
             self.requests_made += 1
+            model = self.model_in_use
+            if "azure.com" in self.endpoint:
+                model = model.split("/", 1)[-1]
             response = requests.post(
                 self.endpoint,
                 headers={
                     "Authorization": f"Bearer {self.token}",
-                    "Accept": "application/vnd.github+json",
-                    "X-GitHub-Api-Version": "2022-11-28",
+                    "Accept": "application/json",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": self.model_in_use,
+                    "model": model,
                     "messages": messages,
                     "temperature": 0.2,
                     "response_format": {"type": "json_object"},
                 },
                 timeout=120,
+                allow_redirects=False,
             )
             if response.status_code == 200:
                 try:
                     content = response.json()["choices"][0]["message"]["content"]
                 except (ValueError, KeyError, IndexError, TypeError) as exc:
+                    log.warning("unexpected response from %s: content-type=%s body=%r",
+                                self.endpoint, response.headers.get("Content-Type"), response.text[:300])
+                    if self._next_endpoint():
+                        continue
                     raise RuntimeError(
                         f"unexpected LLM response ({exc}); content-type="
                         f"{response.headers.get('Content-Type')} body={response.text[:300]!r}"
@@ -230,12 +238,27 @@ class GitHubModelsClient:
                 log.warning("rate limited, sleeping %ss", retry_after)
                 time.sleep(retry_after)
                 continue
+            if response.is_redirect:
+                log.warning("%s redirected to %s", self.endpoint, response.headers.get("Location"))
+                if self._next_endpoint():
+                    continue
             if response.status_code in (400, 404) and "model" in response.text.lower() and self._next_model():
                 continue
             if response.status_code in (401, 403):
+                log.warning("%s refused: %s %s", self.endpoint, response.status_code, response.text[:200])
+                if self._next_endpoint():
+                    continue
                 raise QuotaExhausted(f"not authorised for GitHub Models: {response.status_code} {response.text[:200]}")
             log.warning("LLM call failed %s: %s", response.status_code, response.text[:300])
         raise RuntimeError("LLM call failed after retries")
+
+    def _next_endpoint(self) -> bool:
+        idx = self.endpoints.index(self.endpoint)
+        if idx + 1 < len(self.endpoints):
+            self.endpoint = self.endpoints[idx + 1]
+            log.info("switching LLM endpoint to %s", self.endpoint)
+            return True
+        return False
 
     def _next_model(self) -> bool:
         idx = self.models.index(self.model_in_use)
